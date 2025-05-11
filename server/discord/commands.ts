@@ -968,7 +968,7 @@ export async function registerCommands(client: BotClient) {
   // Show command - displays all items in the vending machine
   const showCommand = {
     data: new SlashCommandBuilder()
-      .setName('vending_show')
+      .setName('show')
       .setDescription('販売中の商品リストを表示します'),
     async execute(interaction: CommandInteraction, storage: IStorage) {
       await interaction.deferReply();
@@ -984,7 +984,7 @@ export async function registerCommands(client: BotClient) {
         // Create embed for the vending machine
         const embed = new EmbedBuilder()
           .setTitle('自動販売機')
-          .setDescription(`以下の商品が販売中です！購入するには \`/vending_buy [商品ID]\` を使用してください`)
+          .setDescription(`以下の商品が販売中です！購入するには \`!buy [商品ID]\` または \`!cart add [商品ID]\` を使用してください`)
           .setColor('#5865F2');
           
         // Add fields for each item
@@ -1019,7 +1019,7 @@ export async function registerCommands(client: BotClient) {
   // Buy command - purchases an item from the vending machine
   const buyCommand = {
     data: new SlashCommandBuilder()
-      .setName('vending_buy')
+      .setName('buy')
       .setDescription('指定した商品を購入します')
       .addIntegerOption(option => 
         option.setName('item_id')
