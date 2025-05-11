@@ -38,7 +38,7 @@ export default function Settings() {
   const { toast } = useToast();
   
   // Get environment variables for bot token
-  const botToken = process.env.DISCORD_BOT_TOKEN || "";
+  const botToken = import.meta.env.VITE_DISCORD_BOT_TOKEN || "";
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
