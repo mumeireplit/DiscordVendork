@@ -139,14 +139,31 @@ async function handleShowCommand(message: Message, storage: IStorage) {
     const guildSettings = await storage.getBotSettings(message.guildId || '');
     const currencyName = guildSettings?.currencyName || 'コイン';
     
+    // ユーザー残高を取得
+    const discordUser = await storage.getDiscordUserByDiscordId(message.author.id);
+    const balance = discordUser ? discordUser.balance : 0;
+    
     // Create embed for the vending machine
     const embed = new EmbedBuilder()
-      .setTitle('自動販売機')
-      .setDescription(`以下の商品が販売中です！購入するには \`!buy [商品ID] [数量(省略可)]\` を使用してください`)
+      .setTitle('🎰 じはんき - 商品一覧')
+      .setDescription('以下の商品が販売中です。ボタンをクリックして購入できます。')
       .setColor('#5865F2');
+
+    // 商品がない場合
+    if (activeItems.length === 0) {
+      embed.setDescription('現在販売中の商品はありません。');
+      return await message.reply({ embeds: [embed] });
+    }
+    
+    // 商品ごとにボタンコンポーネントを作成
+    const components: ActionRowBuilder<ButtonBuilder>[] = [];
+    const PAGE_SIZE = 5; // 1ページあたりの商品数
+    
+    // ページング処理（最大25個のボタンまで表示可能なので、5行×5列の形式）
+    for (let i = 0; i < Math.min(activeItems.length, PAGE_SIZE); i++) {
+      const item = activeItems[i];
       
-    // Add fields for each item
-    activeItems.forEach(item => {
+      // 商品情報をEmbedに追加
       const stockStatus = item.stock > 0 
         ? `在庫: ${item.stock}`
         : '在庫切れ';
@@ -156,17 +173,382 @@ async function handleShowCommand(message: Message, storage: IStorage) {
         value: `${item.description}\n価格: **${item.price} ${currencyName}** | ${stockStatus}`,
         inline: false
       });
-    });
+      
+      // 商品のボタンを作成
+      const row = new ActionRowBuilder<ButtonBuilder>();
+      
+      // 直接購入ボタン
+      const buyButton = new ButtonBuilder()
+        .setCustomId(`buy_${item.id}_1`) // アイテムIDと数量=1を含める
+        .setLabel(`購入する (${item.price} ${currencyName})`)
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(item.stock <= 0 || balance < item.price);
+      
+      // カートに追加ボタン
+      const addToCartButton = new ButtonBuilder()
+        .setCustomId(`cart_add_${item.id}_1`)
+        .setLabel('カートに追加')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(item.stock <= 0);
+      
+      // 詳細表示ボタン
+      const detailsButton = new ButtonBuilder()
+        .setCustomId(`details_${item.id}`)
+        .setLabel('詳細')
+        .setStyle(ButtonStyle.Secondary);
+      
+      row.addComponents(buyButton, addToCartButton, detailsButton);
+      components.push(row);
+    }
     
-    // Get user balance
-    const discordUser = await storage.getDiscordUserByDiscordId(message.author.id);
+    // ナビゲーションボタン
+    if (activeItems.length > PAGE_SIZE) {
+      const navRow = new ActionRowBuilder<ButtonBuilder>();
+      
+      const nextPageButton = new ButtonBuilder()
+        .setCustomId('next_page')
+        .setLabel('次のページ ▶')
+        .setStyle(ButtonStyle.Secondary);
+      
+      const showAllButton = new ButtonBuilder()
+        .setCustomId('show_all')
+        .setLabel('すべての商品を見る')
+        .setStyle(ButtonStyle.Secondary);
+      
+      const cartButton = new ButtonBuilder()
+        .setCustomId('view_cart')
+        .setLabel('カートを見る')
+        .setStyle(ButtonStyle.Secondary);
+      
+      navRow.addComponents(nextPageButton, showAllButton, cartButton);
+      components.push(navRow);
+    }
+    
+    // フッターに残高を表示
     if (discordUser) {
       embed.setFooter({ 
         text: `残高: ${discordUser.balance} ${currencyName}` 
       });
     }
     
-    await message.reply({ embeds: [embed] });
+    // メッセージを送信
+    const sentMessage = await message.reply({ 
+      embeds: [embed],
+      components: components
+    });
+    
+    // ボタンのインタラクションを処理するコレクターを設定
+    const collector = sentMessage.createMessageComponentCollector({ 
+      time: 300000 // 5分間有効
+    });
+    
+    collector.on('collect', async (interaction) => {
+      // ボタンを押したのが元のユーザーでない場合はエラー
+      if (interaction.user.id !== message.author.id) {
+        return await interaction.reply({ 
+          content: 'この操作はメッセージの送信者のみ実行できます。`!show`コマンドで自分のリストを表示してください。', 
+          ephemeral: true 
+        });
+      }
+      
+      const customId = interaction.customId;
+      
+      // ボタンのIDを解析して処理
+      if (customId.startsWith('buy_')) {
+        // 直接購入処理
+        const [_, itemId, quantity] = customId.split('_').map(Number);
+        
+        // 購入確認メッセージを表示
+        const item = activeItems.find(i => i.id === itemId);
+        
+        if (!item) {
+          return await interaction.reply({
+            content: '商品が見つかりません。',
+            ephemeral: true
+          });
+        }
+        
+        const confirmRow = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId(`confirm_buy_${itemId}_${quantity}`)
+              .setLabel('購入する')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId('cancel_buy')
+              .setLabel('キャンセル')
+              .setStyle(ButtonStyle.Secondary)
+          );
+        
+        await interaction.reply({
+          content: `${item.name} を ${quantity} 個、合計 ${item.price * quantity} ${currencyName} で購入しますか？`,
+          components: [confirmRow],
+          ephemeral: true
+        });
+      }
+      else if (customId.startsWith('confirm_buy_')) {
+        // 購入確認処理
+        const [_, __, itemId, quantity] = customId.split('_').map(Number);
+        
+        // 本来はここでハンドルバイコマンドを呼ぶべきだが、コード重複を避けるため直接処理
+        try {
+          const item = await storage.getItem(itemId);
+          if (!item || !item.isActive || item.stock < quantity) {
+            return await interaction.update({
+              content: '商品が見つからないか、在庫が不足しています。',
+              components: []
+            });
+          }
+          
+          const discordUser = await storage.getDiscordUserByDiscordId(interaction.user.id);
+          if (!discordUser) {
+            return await interaction.update({
+              content: 'ユーザー情報が見つかりません。',
+              components: []
+            });
+          }
+          
+          const totalPrice = item.price * quantity;
+          
+          if (discordUser.balance < totalPrice) {
+            return await interaction.update({
+              content: `残高が不足しています。必要: ${totalPrice} ${currencyName}、残高: ${discordUser.balance} ${currencyName}`,
+              components: []
+            });
+          }
+          
+          // 購入処理実行
+          await storage.updateDiscordUserBalance(discordUser.id, -totalPrice);
+          await storage.updateItem(item.id, { stock: item.stock - quantity });
+          
+          // トランザクション記録
+          await storage.createTransaction({
+            discordUserId: discordUser.id,
+            itemId: item.id,
+            quantity: quantity,
+            totalPrice: totalPrice
+          });
+          
+          // ロール付与（該当する場合）
+          if (item.discordRoleId && message.guild) {
+            try {
+              const member = await message.guild.members.fetch(interaction.user.id);
+              await member.roles.add(item.discordRoleId);
+            } catch (roleError) {
+              console.error('Error adding role:', roleError);
+            }
+          }
+          
+          // 更新された残高を取得
+          const updatedUser = await storage.getDiscordUser(discordUser.id);
+          const newBalance = updatedUser ? updatedUser.balance : 0;
+          
+          await interaction.update({
+            content: `✅ ${item.name} を ${quantity} 個購入しました！\n残高: ${newBalance} ${currencyName}`,
+            components: []
+          });
+          
+          // 公開メッセージ
+          const publicEmbed = new EmbedBuilder()
+            .setTitle('🛒 商品が購入されました！')
+            .setDescription(`${interaction.user.username} が ${item.name} を ${quantity} 個購入しました！`)
+            .setColor('#3BA55C')
+            .setTimestamp();
+            
+          await message.channel.send({ embeds: [publicEmbed] });
+        } catch (error) {
+          console.error('Error processing buy:', error);
+          await interaction.update({
+            content: '購入処理中にエラーが発生しました。',
+            components: []
+          });
+        }
+      }
+      else if (customId === 'cancel_buy') {
+        // 購入キャンセル
+        await interaction.update({
+          content: '購入をキャンセルしました。',
+          components: []
+        });
+      }
+      else if (customId.startsWith('cart_add_')) {
+        // カートに追加
+        const [_, __, itemId, quantity] = customId.split('_').map(Number);
+        
+        try {
+          const item = await storage.getItem(itemId);
+          if (!item || !item.isActive || item.stock < quantity) {
+            return await interaction.reply({
+              content: '商品が見つからないか、在庫が不足しています。',
+              ephemeral: true
+            });
+          }
+          
+          // カートに追加
+          addToCart(interaction.user.id, item, quantity);
+          
+          await interaction.reply({
+            content: `${item.name} を ${quantity} 個カートに追加しました！\n確認するには \`!cart\` と入力してください。`,
+            ephemeral: true
+          });
+        } catch (error) {
+          console.error('Error adding to cart:', error);
+          await interaction.reply({
+            content: 'カートに追加中にエラーが発生しました。',
+            ephemeral: true
+          });
+        }
+      }
+      else if (customId.startsWith('details_')) {
+        // 商品詳細表示
+        const itemId = Number(customId.split('_')[1]);
+        const item = await storage.getItem(itemId);
+        
+        if (!item) {
+          return await interaction.reply({
+            content: '商品が見つかりません。',
+            ephemeral: true
+          });
+        }
+        
+        const detailsEmbed = new EmbedBuilder()
+          .setTitle(`商品詳細: ${item.name}`)
+          .setDescription(item.description)
+          .addFields(
+            { name: '価格', value: `${item.price} ${currencyName}`, inline: true },
+            { name: '在庫', value: `${item.stock}`, inline: true },
+            { name: '商品ID', value: `${item.id}`, inline: true }
+          )
+          .setColor('#5865F2')
+          .setFooter({ text: `!buy ${item.id} [数量] で購入、!cart add ${item.id} [数量] でカートに追加できます` });
+        
+        // 数量選択用セレクトメニュー
+        const quantityRow = new ActionRowBuilder<StringSelectMenuBuilder>()
+          .addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId(`quantity_select_${itemId}`)
+              .setPlaceholder('購入数量を選択')
+              .addOptions(
+                new StringSelectMenuOptionBuilder().setLabel('1個').setValue(`1_${itemId}`),
+                new StringSelectMenuOptionBuilder().setLabel('2個').setValue(`2_${itemId}`),
+                new StringSelectMenuOptionBuilder().setLabel('3個').setValue(`3_${itemId}`),
+                new StringSelectMenuOptionBuilder().setLabel('5個').setValue(`5_${itemId}`),
+                new StringSelectMenuOptionBuilder().setLabel('10個').setValue(`10_${itemId}`)
+              )
+          );
+        
+        // アクションボタン
+        const actionRow = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId(`direct_buy_${itemId}_1`)
+              .setLabel(`今すぐ購入`)
+              .setStyle(ButtonStyle.Success)
+              .setDisabled(item.stock <= 0 || balance < item.price),
+            new ButtonBuilder()
+              .setCustomId(`cart_add_${itemId}_1`)
+              .setLabel('カートに追加')
+              .setStyle(ButtonStyle.Primary)
+              .setDisabled(item.stock <= 0)
+          );
+        
+        await interaction.reply({
+          embeds: [detailsEmbed],
+          components: [quantityRow, actionRow],
+          ephemeral: true
+        });
+      }
+      else if (customId === 'view_cart') {
+        // カートを表示
+        await interaction.deferUpdate();
+        await handleCartCommand(message, [], storage);
+      }
+      else if (customId === 'next_page' || customId === 'show_all') {
+        // 次ページまたは全表示
+        // 実装は複雑になるため、簡易表示に戻す
+        await interaction.update({
+          content: '追加の商品やすべての商品を見るには `!show all` コマンドを使用してください。',
+          components: []
+        });
+      }
+      else if (customId.startsWith('quantity_select_')) {
+        // 数量選択処理
+        const selectValues = interaction.values[0].split('_');
+        const quantity = Number(selectValues[0]);
+        const itemId = Number(selectValues[1]);
+        
+        const item = await storage.getItem(itemId);
+        if (!item) {
+          return await interaction.update({
+            content: '商品が見つかりません。',
+            components: []
+          });
+        }
+        
+        // 新しいボタンを生成
+        const newRow = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId(`direct_buy_${itemId}_${quantity}`)
+              .setLabel(`${quantity}個購入 (${item.price * quantity} ${currencyName})`)
+              .setStyle(ButtonStyle.Success)
+              .setDisabled(item.stock < quantity || balance < (item.price * quantity)),
+            new ButtonBuilder()
+              .setCustomId(`cart_add_${itemId}_${quantity}`)
+              .setLabel(`${quantity}個カートに追加`)
+              .setStyle(ButtonStyle.Primary)
+              .setDisabled(item.stock < quantity)
+          );
+        
+        await interaction.update({
+          content: `${item.name} を ${quantity} 個選択しました。`,
+          components: [newRow]
+        });
+      }
+      else if (customId.startsWith('direct_buy_')) {
+        // 詳細画面からの直接購入
+        const [_, __, itemId, quantity] = customId.split('_').map(Number);
+        
+        const item = await storage.getItem(itemId);
+        if (!item) {
+          return await interaction.update({
+            content: '商品が見つかりません。',
+            components: []
+          });
+        }
+        
+        const confirmRow = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId(`confirm_buy_${itemId}_${quantity}`)
+              .setLabel('購入する')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId('cancel_buy')
+              .setLabel('キャンセル')
+              .setStyle(ButtonStyle.Secondary)
+          );
+        
+        await interaction.update({
+          content: `${item.name} を ${quantity} 個、合計 ${item.price * quantity} ${currencyName} で購入しますか？`,
+          components: [confirmRow]
+        });
+      }
+    });
+    
+    // タイムアウト時の処理
+    collector.on('end', async collected => {
+      if (sentMessage.editable) {
+        try {
+          await sentMessage.edit({
+            content: `表示が有効期限切れになりました。もう一度商品を表示するには \`!show\` と入力してください。`,
+            components: []
+          });
+        } catch (error) {
+          console.error('Error updating expired message:', error);
+        }
+      }
+    });
   } catch (error) {
     console.error('Error in show command:', error);
     await message.reply('商品リストの取得中にエラーが発生しました。');
