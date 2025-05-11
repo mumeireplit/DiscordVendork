@@ -222,6 +222,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to update bot settings' });
     }
   });
+  
+  // 購入処理API
+  app.post('/api/purchase', async (req, res) => {
+    try {
+      // リクエストのバリデーション
+      const purchaseSchema = z.object({
+        discordId: z.string(),
+        items: z.array(z.object({
+          itemId: z.number(),
+          quantity: z.number().min(1)
+        }))
+      });
+      
+      const { discordId, items } = purchaseSchema.parse(req.body);
+      
+      // Discordユーザーを取得または作成
+      let discordUser = await storage.getDiscordUserByDiscordId(discordId);
+      
+      if (!discordUser) {
+        // Discordユーザーが存在しない場合は新規作成
+        discordUser = await storage.createDiscordUser({
+          discordId,
+          username: `User-${discordId.slice(-5)}`, // 実際のユーザー名は取得できないのでIDの末尾5桁を使用
+          balance: 1000 // 初期残高
+        });
+      }
+      
+      // 各商品の取得と在庫・価格の検証
+      const purchaseItems = [];
+      let totalPrice = 0;
+      
+      for (const item of items) {
+        const productItem = await storage.getItem(item.itemId);
+        
+        if (!productItem) {
+          return res.status(404).json({ 
+            message: `Item with ID ${item.itemId} not found` 
+          });
+        }
+        
+        if (!productItem.isActive) {
+          return res.status(400).json({ 
+            message: `Item ${productItem.name} is currently not available for purchase`
+          });
+        }
+        
+        if (productItem.stock < item.quantity) {
+          return res.status(400).json({ 
+            message: `Not enough stock for ${productItem.name}. Available: ${productItem.stock}`
+          });
+        }
+        
+        const itemTotal = productItem.price * item.quantity;
+        totalPrice += itemTotal;
+        
+        purchaseItems.push({
+          item: productItem,
+          quantity: item.quantity,
+          itemTotal
+        });
+      }
+      
+      // 残高チェック
+      if (discordUser.balance < totalPrice) {
+        return res.status(400).json({ 
+          message: `Insufficient balance. Required: ${totalPrice}, Available: ${discordUser.balance}`
+        });
+      }
+      
+      // トランザクション作成と在庫・残高の更新
+      const transactions = [];
+      
+      for (const purchaseItem of purchaseItems) {
+        // 在庫の更新
+        await storage.updateItem(purchaseItem.item.id, {
+          stock: purchaseItem.item.stock - purchaseItem.quantity
+        });
+        
+        // トランザクション作成
+        const transaction = await storage.createTransaction({
+          discordUserId: discordUser.id,
+          itemId: purchaseItem.item.id,
+          quantity: purchaseItem.quantity,
+          totalPrice: purchaseItem.itemTotal
+        });
+        
+        transactions.push(transaction);
+      }
+      
+      // 残高の更新
+      await storage.updateDiscordUserBalance(discordUser.id, -totalPrice);
+      
+      // 更新されたユーザー情報を取得
+      const updatedUser = await storage.getDiscordUser(discordUser.id);
+      
+      res.status(201).json({
+        success: true,
+        transactions,
+        user: updatedUser,
+        totalPrice
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: 'Invalid purchase data', 
+          errors: error.errors 
+        });
+      }
+      
+      console.error('Error processing purchase:', error);
+      res.status(500).json({ message: 'Failed to process purchase' });
+    }
+  });
 
   const httpServer = createServer(app);
 
