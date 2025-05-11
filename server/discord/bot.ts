@@ -1,5 +1,5 @@
-import { Client, GatewayIntentBits, Collection, Events } from 'discord.js';
-import { registerCommands } from './commands';
+import { Client, GatewayIntentBits, Collection, Events, Message } from 'discord.js';
+import { registerCommands, handleCommand } from './commands';
 import { storage } from '../storage';
 
 // Extend Discord.js Client to add commands property
@@ -27,7 +27,7 @@ client.once(Events.ClientReady, async () => {
   await registerCommands(client);
 });
 
-// Process interaction events
+// Process interaction events (スラッシュコマンド)
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isCommand()) return;
 
@@ -66,6 +66,43 @@ client.on(Events.InteractionCreate, async (interaction) => {
         ephemeral: true 
       });
     }
+  }
+});
+
+// Process message events (! プレフィックスコマンド)
+client.on(Events.MessageCreate, async (message: Message) => {
+  // Ignore bot messages and messages that don't start with !
+  if (message.author.bot || !message.content.startsWith('!')) return;
+  
+  // Extract the command name and arguments
+  const args = message.content.slice(1).trim().split(/ +/);
+  const commandName = args.shift()?.toLowerCase();
+  
+  if (!commandName) return;
+  
+  try {
+    // Get or create discord user in our database
+    const discordId = message.author.id;
+    let discordUser = await storage.getDiscordUserByDiscordId(discordId);
+    
+    if (!discordUser) {
+      discordUser = await storage.createDiscordUser({
+        discordId,
+        username: message.author.username,
+        balance: 1000 // Start with 1000 coins
+      });
+    }
+    
+    // Command names that start with "vending_" in slash commands
+    // but we want to support just the command name with ! prefix
+    // e.g. !show instead of !vending_show
+    const fullCommandName = `vending_${commandName}`;
+    
+    // Handle the command
+    await handleCommand(message, commandName, args, storage);
+  } catch (error) {
+    console.error('Error handling message command:', error);
+    await message.reply('コマンドの実行中にエラーが発生しました。');
   }
 });
 

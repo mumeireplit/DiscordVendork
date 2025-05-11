@@ -1,9 +1,343 @@
-import { Client, SlashCommandBuilder, EmbedBuilder, CommandInteraction, REST, Routes, Collection } from 'discord.js';
+import { Client, SlashCommandBuilder, EmbedBuilder, CommandInteraction, REST, Routes, Collection, Message } from 'discord.js';
 import { IStorage } from '../storage';
 
 // Extend Discord.js Client to add commands property
 interface BotClient extends Client {
   commands: Collection<string, any>;
+}
+
+// Handle message commands with ! prefix
+export async function handleCommand(message: Message, commandName: string, args: string[], storage: IStorage) {
+  try {
+    // Map commandName to the appropriate command function
+    switch(commandName) {
+      case 'show':
+        await handleShowCommand(message, storage);
+        break;
+      case 'buy':
+        await handleBuyCommand(message, args, storage);
+        break;
+      case 'balance':
+        await handleBalanceCommand(message, storage);
+        break;
+      case 'add':
+        await handleAddCommand(message, args, storage);
+        break;
+      case 'remove':
+        await handleRemoveCommand(message, args, storage);
+        break;
+      case 'price':
+        await handlePriceCommand(message, args, storage);
+        break;
+      case 'stock':
+        await handleStockCommand(message, args, storage);
+        break;
+      default:
+        await message.reply('無効なコマンドです。利用可能なコマンド: !show, !buy, !balance, !add, !remove, !price, !stock');
+        break;
+    }
+  } catch (error) {
+    console.error('Error handling command:', error);
+    await message.reply('コマンドの実行中にエラーが発生しました。');
+  }
+}
+
+// Show command for ! prefix
+async function handleShowCommand(message: Message, storage: IStorage) {
+  try {
+    const items = await storage.getItems();
+    const activeItems = items.filter(item => item.isActive);
+    
+    // Get bot settings or use defaults
+    const guildSettings = await storage.getBotSettings(message.guildId || '');
+    const currencyName = guildSettings?.currencyName || 'コイン';
+    
+    // Create embed for the vending machine
+    const embed = new EmbedBuilder()
+      .setTitle('自動販売機')
+      .setDescription(`以下の商品が販売中です！購入するには \`!buy [商品ID] [数量(省略可)]\` を使用してください`)
+      .setColor('#5865F2');
+      
+    // Add fields for each item
+    activeItems.forEach(item => {
+      const stockStatus = item.stock > 0 
+        ? `在庫: ${item.stock}`
+        : '在庫切れ';
+        
+      embed.addFields({
+        name: `#${item.id.toString().padStart(3, '0')} ${item.name}`,
+        value: `${item.description}\n価格: **${item.price} ${currencyName}** | ${stockStatus}`,
+        inline: false
+      });
+    });
+    
+    // Get user balance
+    const discordUser = await storage.getDiscordUserByDiscordId(message.author.id);
+    if (discordUser) {
+      embed.setFooter({ 
+        text: `残高: ${discordUser.balance} ${currencyName}` 
+      });
+    }
+    
+    await message.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error('Error in show command:', error);
+    await message.reply('商品リストの取得中にエラーが発生しました。');
+  }
+}
+
+// Buy command for ! prefix
+async function handleBuyCommand(message: Message, args: string[], storage: IStorage) {
+  try {
+    // Get item ID and quantity from arguments
+    const itemId = parseInt(args[0]);
+    const quantity = args.length > 1 ? parseInt(args[1]) : 1;
+    
+    if (isNaN(itemId) || isNaN(quantity) || quantity < 1) {
+      return await message.reply('有効な商品IDと数量を指定してください。例: `!buy 1 2`');
+    }
+    
+    // Get the item
+    const item = await storage.getItem(itemId);
+    if (!item) {
+      return await message.reply('指定された商品が見つかりません。');
+    }
+    
+    if (!item.isActive) {
+      return await message.reply('この商品は現在販売停止中です。');
+    }
+    
+    if (item.stock < quantity) {
+      return await message.reply(`在庫が不足しています。現在の在庫: ${item.stock}`);
+    }
+    
+    // Get the user
+    const discordUser = await storage.getDiscordUserByDiscordId(message.author.id);
+    if (!discordUser) {
+      return await message.reply('ユーザー情報が見つかりません。');
+    }
+    
+    // Calculate total price
+    const totalPrice = item.price * quantity;
+    
+    // Check if user has enough balance
+    if (discordUser.balance < totalPrice) {
+      return await message.reply(`残高が不足しています。必要な金額: ${totalPrice} コイン、現在の残高: ${discordUser.balance} コイン`);
+    }
+    
+    // Update user balance
+    await storage.updateDiscordUserBalance(discordUser.id, -totalPrice);
+    
+    // Update item stock
+    await storage.updateItem(item.id, { stock: item.stock - quantity });
+    
+    // Create transaction record
+    await storage.createTransaction({
+      discordUserId: discordUser.id,
+      itemId: item.id,
+      quantity: quantity,
+      totalPrice: totalPrice
+    });
+    
+    // If there's a Discord role ID associated with the item, give role to user
+    if (item.discordRoleId && message.guild) {
+      try {
+        const member = await message.guild.members.fetch(message.author.id);
+        await member.roles.add(item.discordRoleId);
+      } catch (roleError) {
+        console.error('Error adding role:', roleError);
+        // Continue with the purchase even if role assignment fails
+      }
+    }
+    
+    // Send success message
+    await message.reply(`${item.name} を ${quantity} 個購入しました！残高: ${discordUser.balance - totalPrice} コイン`);
+    
+    // Create embed for public announcement
+    const publicEmbed = new EmbedBuilder()
+      .setTitle('商品が購入されました！')
+      .setDescription(`${message.author.username} が ${item.name} を ${quantity} 個購入しました！`)
+      .setColor('#3BA55C');
+      
+    await message.channel.send({ embeds: [publicEmbed] });
+  } catch (error) {
+    console.error('Error in buy command:', error);
+    await message.reply('購入処理中にエラーが発生しました。');
+  }
+}
+
+// Balance command for ! prefix
+async function handleBalanceCommand(message: Message, storage: IStorage) {
+  try {
+    // Get the user
+    const discordUser = await storage.getDiscordUserByDiscordId(message.author.id);
+    if (!discordUser) {
+      return await message.reply('ユーザー情報が見つかりません。');
+    }
+    
+    // Get bot settings or use defaults
+    const guildSettings = await storage.getBotSettings(message.guildId || '');
+    const currencyName = guildSettings?.currencyName || 'コイン';
+    
+    // Send balance message
+    await message.reply(`現在の残高: ${discordUser.balance} ${currencyName}`);
+  } catch (error) {
+    console.error('Error in balance command:', error);
+    await message.reply('残高の確認中にエラーが発生しました。');
+  }
+}
+
+// Add command for ! prefix
+async function handleAddCommand(message: Message, args: string[], storage: IStorage) {
+  try {
+    // Check if user has admin permissions
+    if (!message.member?.permissions.has('Administrator')) {
+      return await message.reply('このコマンドは管理者のみ使用できます。');
+    }
+    
+    // Example format: !add "Item Name" 500 "Item Description" 10 role_id
+    // We need to parse more complex arguments with quotes
+    const fullText = args.join(' ');
+    const nameMatch = fullText.match(/"([^"]+)"/);
+    
+    if (!nameMatch) {
+      return await message.reply('商品名を引用符で囲んで指定してください。例: `!add "プレミアムロール" 500 "説明文" 10`');
+    }
+    
+    const name = nameMatch[1];
+    const remainingText = fullText.replace(nameMatch[0], '').trim();
+    const parts = remainingText.split(' ');
+    
+    const price = parseInt(parts[0]);
+    if (isNaN(price) || price < 0) {
+      return await message.reply('有効な価格を指定してください。');
+    }
+    
+    const descMatch = remainingText.match(/"([^"]+)"/);
+    if (!descMatch) {
+      return await message.reply('説明文を引用符で囲んで指定してください。例: `!add "プレミアムロール" 500 "説明文" 10`');
+    }
+    
+    const description = descMatch[1];
+    const afterDesc = remainingText.replace(descMatch[0], '').trim().split(' ');
+    
+    const stock = parseInt(afterDesc[1]) || 0;
+    const roleId = afterDesc[2] || null;
+    
+    // Create the item
+    const item = await storage.createItem({
+      name,
+      description,
+      price,
+      stock,
+      isActive: true,
+      discordRoleId: roleId
+    });
+    
+    await message.reply(`商品を追加しました：${item.name} (ID: ${item.id}, 価格: ${item.price} コイン)`);
+  } catch (error) {
+    console.error('Error in add command:', error);
+    await message.reply('商品の追加中にエラーが発生しました。');
+  }
+}
+
+// Remove command for ! prefix
+async function handleRemoveCommand(message: Message, args: string[], storage: IStorage) {
+  try {
+    // Check if user has admin permissions
+    if (!message.member?.permissions.has('Administrator')) {
+      return await message.reply('このコマンドは管理者のみ使用できます。');
+    }
+    
+    const itemId = parseInt(args[0]);
+    if (isNaN(itemId)) {
+      return await message.reply('有効な商品IDを指定してください。');
+    }
+    
+    // Get the item first to check if it exists
+    const item = await storage.getItem(itemId);
+    if (!item) {
+      return await message.reply('指定された商品が見つかりません。');
+    }
+    
+    // Delete the item
+    await storage.deleteItem(itemId);
+    
+    await message.reply(`商品を削除しました：${item.name} (ID: ${item.id})`);
+  } catch (error) {
+    console.error('Error in remove command:', error);
+    await message.reply('商品の削除中にエラーが発生しました。');
+  }
+}
+
+// Price command for ! prefix
+async function handlePriceCommand(message: Message, args: string[], storage: IStorage) {
+  try {
+    // Check if user has admin permissions
+    if (!message.member?.permissions.has('Administrator')) {
+      return await message.reply('このコマンドは管理者のみ使用できます。');
+    }
+    
+    const itemId = parseInt(args[0]);
+    const newPrice = parseInt(args[1]);
+    
+    if (isNaN(itemId) || isNaN(newPrice)) {
+      return await message.reply('有効な商品IDと価格を指定してください。例: `!price 1 500`');
+    }
+    
+    if (newPrice < 0) {
+      return await message.reply('価格は0以上の値を指定してください。');
+    }
+    
+    // Get the item first to check if it exists
+    const item = await storage.getItem(itemId);
+    if (!item) {
+      return await message.reply('指定された商品が見つかりません。');
+    }
+    
+    // Update the item price
+    const updatedItem = await storage.updateItem(itemId, { price: newPrice });
+    
+    await message.reply(`商品の価格を変更しました：${updatedItem?.name} (新価格: ${newPrice} コイン)`);
+  } catch (error) {
+    console.error('Error in price command:', error);
+    await message.reply('価格の変更中にエラーが発生しました。');
+  }
+}
+
+// Stock command for ! prefix
+async function handleStockCommand(message: Message, args: string[], storage: IStorage) {
+  try {
+    // Check if user has admin permissions
+    if (!message.member?.permissions.has('Administrator')) {
+      return await message.reply('このコマンドは管理者のみ使用できます。');
+    }
+    
+    const itemId = parseInt(args[0]);
+    const quantity = parseInt(args[1]);
+    
+    if (isNaN(itemId) || isNaN(quantity)) {
+      return await message.reply('有効な商品IDと在庫数を指定してください。例: `!stock 1 10`');
+    }
+    
+    if (quantity < 0) {
+      return await message.reply('在庫数は0以上の値を指定してください。');
+    }
+    
+    // Get the item first to check if it exists
+    const item = await storage.getItem(itemId);
+    if (!item) {
+      return await message.reply('指定された商品が見つかりません。');
+    }
+    
+    // Update the item stock
+    const updatedItem = await storage.updateItem(itemId, { stock: quantity });
+    
+    await message.reply(`商品の在庫数を変更しました：${updatedItem?.name} (新在庫数: ${quantity})`);
+  } catch (error) {
+    console.error('Error in stock command:', error);
+    await message.reply('在庫数の変更中にエラーが発生しました。');
+  }
 }
 
 // Register all commands with the Discord client
