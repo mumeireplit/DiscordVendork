@@ -2,6 +2,11 @@ import { Client, GatewayIntentBits, Collection, Events } from 'discord.js';
 import { registerCommands } from './commands';
 import { storage } from '../storage';
 
+// Extend Discord.js Client to add commands property
+interface BotClient extends Client {
+  commands: Collection<string, any>;
+}
+
 // Create a Discord client instance
 const client = new Client({
   intents: [
@@ -9,7 +14,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
   ],
-});
+}) as BotClient;
 
 // Command collection to store and retrieve commands
 client.commands = new Collection();

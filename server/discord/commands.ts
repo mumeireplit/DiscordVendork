@@ -1,8 +1,13 @@
-import { Client, SlashCommandBuilder, EmbedBuilder, CommandInteraction } from 'discord.js';
+import { Client, SlashCommandBuilder, EmbedBuilder, CommandInteraction, REST, Routes, Collection } from 'discord.js';
 import { IStorage } from '../storage';
 
+// Extend Discord.js Client to add commands property
+interface BotClient extends Client {
+  commands: Collection<string, any>;
+}
+
 // Register all commands with the Discord client
-export async function registerCommands(client: Client) {
+export async function registerCommands(client: BotClient) {
   // Show command - displays all items in the vending machine
   const showCommand = {
     data: new SlashCommandBuilder()
@@ -380,6 +385,26 @@ export async function registerCommands(client: Client) {
   // Add each command to the client.commands collection
   for (const command of commands) {
     client.commands.set(command.data.name, command);
+  }
+  
+  try {
+    // APIにコマンドを登録
+    console.log('Started refreshing application (/) commands.');
+    
+    const commandsData = commands.map(command => command.data.toJSON());
+    
+    // RESTモジュールを使用してDiscord APIと通信
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN || '');
+    
+    // グローバルコマンドとして登録（すべてのサーバーで利用可能）
+    await rest.put(
+      Routes.applicationCommands(client.user!.id),
+      { body: commandsData },
+    );
+    
+    console.log(`Successfully registered ${commands.length} application commands globally.`);
+  } catch (error) {
+    console.error('Error registering application commands:', error);
   }
   
   console.log(`Registered ${commands.length} vending machine commands`);
