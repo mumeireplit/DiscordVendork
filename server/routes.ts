@@ -123,6 +123,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // 特定のユーザーにコインを付与するエンドポイント
+  app.post('/api/discord-users/add-coins', async (req, res) => {
+    try {
+      // リクエストのバリデーション
+      const addCoinsSchema = z.object({
+        discordId: z.string(),
+        amount: z.number().int().positive()
+      });
+      
+      const { discordId, amount } = addCoinsSchema.parse(req.body);
+      
+      // ユーザーを検索
+      let discordUser = await storage.getDiscordUserByDiscordId(discordId);
+      
+      if (!discordUser) {
+        // ユーザーが存在しない場合は作成
+        discordUser = await storage.createDiscordUser({
+          discordId,
+          username: `User-${discordId.slice(-5)}`,
+          balance: 0
+        });
+      }
+      
+      // 残高を更新
+      const updatedUser = await storage.updateDiscordUserBalance(discordUser.id, amount);
+      
+      if (!updatedUser) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'ユーザーが見つかりません' 
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: `ユーザーID: ${discordId} に ${amount} コインを追加しました`,
+        user: updatedUser
+      });
+      
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'リクエストデータが無効です', 
+          errors: error.errors 
+        });
+      }
+      
+      console.error('Error adding coins to user:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'コインの追加に失敗しました' 
+      });
+    }
+  });
+  
+  // 特定のユーザーの残高を設定するエンドポイント
+  app.post('/api/discord-users/set-balance', async (req, res) => {
+    try {
+      // リクエストのバリデーション
+      const setBalanceSchema = z.object({
+        discordId: z.string(),
+        balance: z.number().int().nonnegative()
+      });
+      
+      const { discordId, balance } = setBalanceSchema.parse(req.body);
+      
+      // ユーザーを検索
+      let discordUser = await storage.getDiscordUserByDiscordId(discordId);
+      
+      if (!discordUser) {
+        // ユーザーが存在しない場合は作成
+        discordUser = await storage.createDiscordUser({
+          discordId,
+          username: `User-${discordId.slice(-5)}`,
+          balance: 0
+        });
+      }
+      
+      // 残高を設定
+      const updatedUser = await storage.setDiscordUserBalance(discordUser.id, balance);
+      
+      if (!updatedUser) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'ユーザーが見つかりません' 
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: `ユーザーID: ${discordId} の残高を ${balance} コインに設定しました`,
+        user: updatedUser
+      });
+      
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'リクエストデータが無効です', 
+          errors: error.errors 
+        });
+      }
+      
+      console.error('Error setting user balance:', error);
+      res.status(500).json({ 
+        success: false,
+        message: '残高の設定に失敗しました' 
+      });
+    }
+  });
+  
   app.get('/api/transactions', async (_req, res) => {
     try {
       const transactions = await storage.getTransactions();
