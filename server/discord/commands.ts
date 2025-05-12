@@ -1,4 +1,4 @@
-import { Client, SlashCommandBuilder, EmbedBuilder, CommandInteraction, REST, Routes, Collection, Message, ButtonBuilder, ButtonStyle, ActionRowBuilder, ComponentType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
+import { Client, SlashCommandBuilder, EmbedBuilder, CommandInteraction, REST, Routes, Collection, Message, ButtonBuilder, ButtonStyle, ActionRowBuilder, ComponentType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, PermissionFlagsBits } from 'discord.js';
 import { IStorage } from '../storage';
 import { Item } from '@shared/schema';
 
@@ -118,6 +118,9 @@ export async function handleCommand(message: Message, commandName: string, args:
         break;
       case 'help':
         await handleHelpCommand(message);
+        break;
+      case 'addcoins':
+        await handleAddCoinsCommand(message, args, storage);
         break;
       default:
         await message.reply('無効なコマンドです。利用可能なコマンド一覧は `!help` で確認できます。');
@@ -1160,7 +1163,8 @@ async function handleHelpCommand(message: Message) {
         { name: '!add [名前] [説明] [価格] [在庫]', value: '新しい商品を追加します' },
         { name: '!price [商品ID] [新価格]', value: '商品の価格を変更します' },
         { name: '!stock [商品ID] [数量]', value: '商品の在庫を追加します' },
-        { name: '!remove [商品ID]', value: '商品を削除します' }
+        { name: '!remove [商品ID]', value: '商品を削除します' },
+        { name: '!addcoins @username [コイン数]', value: '特定のユーザーにコインを追加します' }
       );
     }
     
@@ -1346,6 +1350,112 @@ async function handleStockCommand(message: Message, args: string[], storage: ISt
 }
 
 // Register all commands with the Discord client
+// コイン追加コマンド for ! prefix
+async function handleAddCoinsCommand(message: Message, args: string[], storage: IStorage) {
+  try {
+    // 管理者権限チェック
+    if (!message.member?.permissions.has('Administrator')) {
+      return await message.reply('このコマンドは管理者のみ使用できます。');
+    }
+    
+    // 引数チェック: !addcoins @username 500
+    if (args.length < 2) {
+      return await message.reply('使用方法: `!addcoins @username [コイン数]`');
+    }
+    
+    const userMention = args[0];
+    const amount = parseInt(args[1]);
+    
+    if (isNaN(amount) || amount <= 0) {
+      return await message.reply('コイン数は正の整数で指定してください。');
+    }
+    
+    // メンションからユーザーIDを抽出
+    let userId = userMention;
+    if (userMention.startsWith('<@') && userMention.endsWith('>')) {
+      userId = userMention.slice(2, -1);
+      if (userId.startsWith('!')) {
+        userId = userId.slice(1);
+      }
+    }
+    
+    // ユーザー存在チェック
+    let discordUser = await storage.getDiscordUserByDiscordId(userId);
+    
+    if (!discordUser) {
+      const mentionedUser = await message.client.users.fetch(userId).catch(() => null);
+      if (!mentionedUser) {
+        return await message.reply('指定されたユーザーが見つかりません。');
+      }
+      
+      // ユーザーが存在しない場合は作成
+      discordUser = await storage.createDiscordUser({
+        discordId: userId,
+        username: mentionedUser.username,
+        balance: 0
+      });
+    }
+    
+    // 残高更新
+    const updatedUser = await storage.updateDiscordUserBalance(discordUser.id, amount);
+    
+    await message.reply(`${userMention} に ${amount} コインを追加しました。新しい残高: ${updatedUser?.balance} コイン`);
+  } catch (error) {
+    console.error('Error adding coins:', error);
+    await message.reply('コイン追加中にエラーが発生しました。');
+  }
+}
+
+// スラッシュコマンドバージョンのコイン追加コマンド
+const addCoinsCommand = {
+  data: new SlashCommandBuilder()
+    .setName('vending_addcoins')
+    .setDescription('ユーザーにコインを追加します')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addUserOption(option => 
+      option.setName('user')
+        .setDescription('コインを追加するユーザー')
+        .setRequired(true))
+    .addIntegerOption(option => 
+      option.setName('amount')
+        .setDescription('追加するコイン数（正の整数）')
+        .setMinValue(1)
+        .setRequired(true)),
+  async execute(interaction: CommandInteraction, storage: IStorage) {
+    await interaction.deferReply({ ephemeral: true });
+    
+    try {
+      const options = interaction.options;
+      const user = options.getUser('user');
+      const amount = options.getInteger('amount');
+      
+      if (!user || !amount) {
+        return await interaction.editReply('ユーザーとコイン数が必要です。');
+      }
+      
+      // ユーザー存在チェック
+      let discordUser = await storage.getDiscordUserByDiscordId(user.id);
+      
+      if (!discordUser) {
+        // ユーザーが存在しない場合は作成
+        discordUser = await storage.createDiscordUser({
+          discordId: user.id,
+          username: user.username,
+          balance: 0
+        });
+      }
+      
+      // 残高更新
+      const updatedUser = await storage.updateDiscordUserBalance(discordUser.id, amount);
+      
+      await interaction.editReply(`${user.toString()} に ${amount} コインを追加しました。新しい残高: ${updatedUser?.balance} コイン`);
+    } catch (error) {
+      console.error('Error adding coins:', error);
+      await interaction.editReply('コイン追加中にエラーが発生しました。');
+    }
+  }
+};
+
 export async function registerCommands(client: BotClient) {
   // Show command - displays all items in the vending machine
   const showCommand = {
