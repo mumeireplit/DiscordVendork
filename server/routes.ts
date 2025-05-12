@@ -259,7 +259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         discordUser = await storage.createDiscordUser({
           discordId,
           username: `User-${discordId.slice(-5)}`, // 実際のユーザー名は取得できないのでIDの末尾5桁を使用
-          balance: 1000 // 初期残高
+          balance: 0 // 初期残高
         });
       }
       

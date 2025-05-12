@@ -45,7 +45,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         discordUser = await storage.createDiscordUser({
           discordId,
           username: interaction.user.username,
-          balance: 1000 // Start with 1000 coins
+          balance: 0 // Start with 0 coins
         });
       }
     }
@@ -89,7 +89,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
       discordUser = await storage.createDiscordUser({
         discordId,
         username: message.author.username,
-        balance: 1000 // Start with 1000 coins
+        balance: 0 // Start with 0 coins
       });
     }
     
