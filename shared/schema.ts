@@ -17,6 +17,7 @@ export const items = pgTable("items", {
   price: integer("price").notNull().default(0),
   stock: integer("stock").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  infiniteStock: boolean("infinite_stock").notNull().default(false),
   discordRoleId: text("discord_role_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -61,6 +62,7 @@ export const insertItemSchema = createInsertSchema(items).pick({
   price: true,
   stock: true,
   isActive: true,
+  infiniteStock: true,
   discordRoleId: true,
 });
 

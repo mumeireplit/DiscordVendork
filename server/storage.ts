@@ -141,6 +141,7 @@ export class MemStorage implements IStorage {
       price: insertItem.price || 0,
       stock: insertItem.stock || 0,
       isActive: insertItem.isActive !== undefined ? insertItem.isActive : true,
+      infiniteStock: insertItem.infiniteStock !== undefined ? insertItem.infiniteStock : false,
       discordRoleId: insertItem.discordRoleId || null
     };
     this.items.set(id, item);
