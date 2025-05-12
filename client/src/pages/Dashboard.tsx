@@ -53,6 +53,10 @@ export default function Dashboard() {
       command: "/vending_stock [item_id] [quantity]",
       description: "商品の在庫数を設定します",
     },
+    {
+      command: "/vending_addcoins [user] [amount]",
+      description: "特定のユーザーにコインを追加します",
+    },
   ];
 
   return (

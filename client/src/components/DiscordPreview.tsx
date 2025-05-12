@@ -36,7 +36,7 @@ export function DiscordPreview() {
                 <div>
                   <h3 className="text-foreground font-medium">自動販売機</h3>
                   <p className="text-muted-foreground text-sm mt-1">
-                    以下の商品が販売中です！購入するには `/vending_buy [商品ID]` を使用してください
+                    以下の商品が販売中です！購入するには `/vending_buy [商品ID]` を使用してください。管理者は `/vending_addcoins` でユーザーにコインを追加できます。
                   </p>
                 </div>
                 <div className="w-12 h-12 rounded-md bg-primary flex items-center justify-center text-white">

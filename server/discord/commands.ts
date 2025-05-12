@@ -1828,7 +1828,8 @@ export async function registerCommands(client: BotClient) {
     addCommand,
     removeCommand,
     priceCommand,
-    stockCommand
+    stockCommand,
+    addCoinsCommand
   ];
   
   // Add each command to the client.commands collection
