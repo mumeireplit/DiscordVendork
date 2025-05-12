@@ -296,7 +296,7 @@ async function handleShowCommand(message: Message, storage: IStorage) {
         // 本来はここでハンドルバイコマンドを呼ぶべきだが、コード重複を避けるため直接処理
         try {
           const item = await storage.getItem(itemId);
-          if (!item || !item.isActive || item.stock < quantity) {
+          if (!item || !item.isActive || (!item.infiniteStock && item.stock < quantity)) {
             return await interaction.update({
               content: '商品が見つからないか、在庫が不足しています。',
               components: []
@@ -322,7 +322,10 @@ async function handleShowCommand(message: Message, storage: IStorage) {
           
           // 購入処理実行
           await storage.updateDiscordUserBalance(discordUser.id, -totalPrice);
-          await storage.updateItem(item.id, { stock: item.stock - quantity });
+          // 無限在庫でなければ在庫を減らす
+          if (!item.infiniteStock) {
+            await storage.updateItem(item.id, { stock: item.stock - quantity });
+          }
           
           // トランザクション記録
           await storage.createTransaction({
@@ -631,7 +634,7 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
         
         // Recheck item stock
         const updatedItem = await storage.getItem(itemId);
-        if (!updatedItem || updatedItem.stock < quantity) {
+        if (!updatedItem || (!updatedItem.infiniteStock && updatedItem.stock < quantity)) {
           await interaction.update({
             content: '申し訳ありません。在庫状況が変更されました。',
             components: []
@@ -653,8 +656,10 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
           // Update user balance
           await storage.updateDiscordUserBalance(discordUser.id, -totalPrice);
           
-          // Update item stock
-          await storage.updateItem(item.id, { stock: item.stock - quantity });
+          // Update item stock (only if not infinite)
+          if (!item.infiniteStock) {
+            await storage.updateItem(item.id, { stock: item.stock - quantity });
+          }
           
           // Create transaction record
           await storage.createTransaction({
@@ -1006,7 +1011,7 @@ async function handleCheckoutCommand(message: Message, storage: IStorage) {
           let stockErrorFound = false;
           for (const item of cart.items) {
             const dbItem = await storage.getItem(item.itemId);
-            if (!dbItem || dbItem.stock < item.quantity) {
+            if (!dbItem || (!dbItem.infiniteStock && dbItem.stock < item.quantity)) {
               stockErrorFound = true;
               break;
             }
@@ -1028,10 +1033,12 @@ async function handleCheckoutCommand(message: Message, storage: IStorage) {
           // 2. 各商品の処理
           const transactions = [];
           for (const item of cart.items) {
-            // 在庫を減らす
+            // 在庫を減らす（無限在庫でない場合のみ）
             const dbItem = await storage.getItem(item.itemId);
             if (dbItem) {
-              await storage.updateItem(dbItem.id, { stock: dbItem.stock - item.quantity });
+              if (!dbItem.infiniteStock) {
+                await storage.updateItem(dbItem.id, { stock: dbItem.stock - item.quantity });
+              }
               
               // トランザクション記録を作成
               const transaction = await storage.createTransaction({
