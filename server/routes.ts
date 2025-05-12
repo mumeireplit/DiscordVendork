@@ -109,6 +109,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  app.post('/api/discord-users/reset-balances', async (_req, res) => {
+    try {
+      const resetCount = await storage.resetAllDiscordUserBalances();
+      res.json({ 
+        success: true, 
+        message: `${resetCount} Discord ユーザーの残高をゼロにリセットしました`,
+        resetCount
+      });
+    } catch (error) {
+      console.error('Error resetting discord user balances:', error);
+      res.status(500).json({ message: 'Discord ユーザーの残高リセットに失敗しました' });
+    }
+  });
+  
   app.get('/api/transactions', async (_req, res) => {
     try {
       const transactions = await storage.getTransactions();

@@ -25,6 +25,8 @@ export interface IStorage {
   getDiscordUserByDiscordId(discordId: string): Promise<DiscordUser | undefined>;
   createDiscordUser(discordUser: InsertDiscordUser): Promise<DiscordUser>;
   updateDiscordUserBalance(id: number, amount: number): Promise<DiscordUser | undefined>;
+  setDiscordUserBalance(id: number, balance: number): Promise<DiscordUser | undefined>;
+  resetAllDiscordUserBalances(): Promise<number>; // Returns the number of users reset
   
   // Transaction methods
   getTransactions(): Promise<Transaction[]>;
@@ -131,7 +133,16 @@ export class MemStorage implements IStorage {
   async createItem(insertItem: InsertItem): Promise<Item> {
     const id = this.itemIdCounter++;
     const createdAt = new Date();
-    const item: Item = { ...insertItem, id, createdAt };
+    // Ensure all required fields have values
+    const item: Item = { 
+      ...insertItem, 
+      id, 
+      createdAt,
+      price: insertItem.price || 0,
+      stock: insertItem.stock || 0,
+      isActive: insertItem.isActive !== undefined ? insertItem.isActive : true,
+      discordRoleId: insertItem.discordRoleId || null
+    };
     this.items.set(id, item);
     return item;
   }
@@ -171,7 +182,12 @@ export class MemStorage implements IStorage {
   async createDiscordUser(insertDiscordUser: InsertDiscordUser): Promise<DiscordUser> {
     const id = this.discordUserIdCounter++;
     const createdAt = new Date();
-    const discordUser: DiscordUser = { ...insertDiscordUser, id, createdAt };
+    const discordUser: DiscordUser = { 
+      ...insertDiscordUser, 
+      id, 
+      createdAt,
+      balance: insertDiscordUser.balance !== undefined ? insertDiscordUser.balance : 0 
+    };
     this.discordUsers.set(id, discordUser);
     return discordUser;
   }
@@ -187,6 +203,31 @@ export class MemStorage implements IStorage {
     
     this.discordUsers.set(id, updatedDiscordUser);
     return updatedDiscordUser;
+  }
+  
+  async setDiscordUserBalance(id: number, balance: number): Promise<DiscordUser | undefined> {
+    const discordUser = await this.getDiscordUser(id);
+    if (!discordUser) return undefined;
+    
+    const updatedDiscordUser: DiscordUser = {
+      ...discordUser,
+      balance: balance
+    };
+    
+    this.discordUsers.set(id, updatedDiscordUser);
+    return updatedDiscordUser;
+  }
+  
+  async resetAllDiscordUserBalances(): Promise<number> {
+    let count = 0;
+    const users = await this.getDiscordUsers();
+    
+    for (const user of users) {
+      await this.setDiscordUserBalance(user.id, 0);
+      count++;
+    }
+    
+    return count;
   }
   
   // Transaction methods
