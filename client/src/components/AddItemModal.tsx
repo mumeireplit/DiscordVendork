@@ -18,6 +18,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -56,6 +57,7 @@ export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) 
       price: 0,
       stock: 0,
       isActive: true,
+      infiniteStock: false,
       discordRoleId: "",
     },
   });
@@ -172,6 +174,29 @@ export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) 
                     />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="infiniteStock"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">
+                      無限在庫
+                    </FormLabel>
+                    <FormDescription>
+                      在庫が減らない商品（デジタル商品やロールなど）の場合はオンにしてください
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />

@@ -58,6 +58,7 @@ export default function EditItemModal({ open, onOpenChange, item }: EditItemModa
       price: item.price,
       stock: item.stock,
       isActive: item.isActive,
+      infiniteStock: item.infiniteStock || false,
       discordRoleId: item.discordRoleId || "",
     },
   });
