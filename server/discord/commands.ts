@@ -843,7 +843,8 @@ async function handleCartCommand(message: Message, args: string[], storage: ISto
           return await message.reply('この商品は現在販売停止中です。');
         }
         
-        if (itemToAdd.stock < addQuantity) {
+        // 無限在庫でなければ在庫チェック
+        if (!itemToAdd.infiniteStock && itemToAdd.stock < addQuantity) {
           return await message.reply(`在庫が不足しています。現在の在庫: ${itemToAdd.stock}`);
         }
         
@@ -929,7 +930,8 @@ async function handleCheckoutCommand(message: Message, storage: IStorage) {
     let stockError = false;
     const stockChecks = await Promise.all(cart.items.map(async (item) => {
       const dbItem = await storage.getItem(item.itemId);
-      if (!dbItem || dbItem.stock < item.quantity) {
+      // 無限在庫アイテムでなく、かつ在庫が不足している場合
+      if (!dbItem || (!dbItem.infiniteStock && dbItem.stock < item.quantity)) {
         stockError = true;
         return `${item.name}: 在庫不足（要求: ${item.quantity}、在庫: ${dbItem ? dbItem.stock : 0}）`;
       }
@@ -1543,7 +1545,8 @@ export async function registerCommands(client: BotClient) {
           return await interaction.editReply('この商品は現在販売停止中です。');
         }
         
-        if (item.stock < quantity) {
+        // 無限在庫でなければ在庫チェック
+        if (!item.infiniteStock && item.stock < quantity) {
           return await interaction.editReply(`在庫が不足しています。現在の在庫: ${item.stock}`);
         }
         
@@ -1564,8 +1567,10 @@ export async function registerCommands(client: BotClient) {
         // Update user balance
         await storage.updateDiscordUserBalance(discordUser.id, -totalPrice);
         
-        // Update item stock
-        await storage.updateItem(item.id, { stock: item.stock - quantity });
+        // Update item stock (only if it's not infinite stock)
+        if (!item.infiniteStock) {
+          await storage.updateItem(item.id, { stock: item.stock - quantity });
+        }
         
         // Create transaction record
         await storage.createTransaction({
