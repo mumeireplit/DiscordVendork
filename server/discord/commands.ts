@@ -662,9 +662,27 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
       time: 60000, // 60秒間有効
     });
     
-    // Handle button interactions
+    // Handle interactions (both buttons and select menu)
     collector.on('collect', async (interaction) => {
+      // 選択メニューからの選択を処理
+      if (interaction.customId === 'option_select' && interaction.isStringSelectMenu()) {
+        selectedOption = interaction.values[0];
+        await interaction.update({
+          content: `${contentText}\n\n選択されたオプション: **${selectedOption}**`,
+          components: components
+        });
+        return;
+      }
+      
       if (interaction.customId === 'confirm_purchase') {
+        // 選択肢が必要なのに選択されていない場合
+        if (item.options && item.options.length > 0 && !selectedOption) {
+          await interaction.update({
+            content: `${contentText}\n\n⚠️ オプションを選択してください。`,
+            components: components
+          });
+          return;
+        }
         // Get the user
         const discordUser = await storage.getDiscordUserByDiscordId(message.author.id);
         if (!discordUser) {
@@ -728,10 +746,44 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
           const newBalance = updatedUser ? updatedUser.balance : 0;
           
           // Update message
+          let successMessage = `✅ ${item.name} を ${quantity} 個購入しました！\n残高: ${newBalance} コイン`;
+          
+          // 選択されたオプションがある場合は表示
+          if (selectedOption) {
+            successMessage += `\n\n選択されたオプション: **${selectedOption}**`;
+          }
+          
+          // DMが送信されたことを通知
+          if (item.content) {
+            successMessage += `\n\n📩 商品の詳細はDMをご確認ください。`;
+          }
+          
           await interaction.update({
-            content: `✅ ${item.name} を ${quantity} 個購入しました！\n残高: ${newBalance} コイン`,
+            content: successMessage,
             components: []
           });
+          
+          // Send DM with content if available
+          if (item.content) {
+            try {
+              const dmChannel = await message.author.createDM();
+              let dmContent = `**${item.name}** の購入ありがとうございます！\n\n`;
+              
+              // 選択されたオプションがある場合はそれも表示
+              if (selectedOption) {
+                dmContent += `選択されたオプション: **${selectedOption}**\n\n`;
+              }
+              
+              dmContent += `ここに購入した商品の内容を記載します:\n\n${item.content}`;
+              
+              await dmChannel.send({
+                content: dmContent
+              });
+            } catch (error) {
+              console.error("Failed to send DM:", error);
+              // Continue with the purchase even if DM fails
+            }
+          }
           
           // Create embed for public announcement
           const publicEmbed = new EmbedBuilder()
@@ -1669,8 +1721,101 @@ export async function registerCommands(client: BotClient) {
           }
         }
         
-        // Send success message
-        await interaction.editReply(`${item.name} を ${quantity} 個購入しました！残高: ${discordUser.balance - totalPrice} コイン`);
+        // 選択肢がある場合はオプション選択のステップを追加
+        if (item.options && item.options.length > 0) {
+          // 選択肢メニューの作成
+          const selectMenu = new StringSelectMenuBuilder()
+            .setCustomId('option_select_slash')
+            .setPlaceholder('選択肢を選んでください')
+            .addOptions(
+              item.options.map(option => ({
+                label: option,
+                value: option
+              }))
+            );
+          
+          const row = new ActionRowBuilder<any>().addComponents(selectMenu);
+          
+          // 選択肢選択用メッセージを送信
+          await interaction.editReply({
+            content: `${item.name} を ${quantity} 個購入しました！残高: ${discordUser.balance - totalPrice} コイン\n\n**オプションを選択してください**:`,
+            components: [row]
+          });
+          
+          // DMのコンテンツがない場合は選択メニューのみ表示して完了
+          if (!item.content) {
+            // 公開メッセージ
+            const publicEmbed = new EmbedBuilder()
+              .setTitle('商品が購入されました！')
+              .setDescription(`${interaction.user.username} が ${item.name} を ${quantity} 個購入しました！`)
+              .setColor('#3BA55C');
+              
+            await interaction.channel?.send({ embeds: [publicEmbed] });
+            return;
+          }
+          
+          try {
+            // インタラクションフィルターを作成
+            const filter = (i: { user: { id: string }; }) => i.user.id === interaction.user.id;
+            
+            // 15秒待機
+            const selected = await interaction.channel?.awaitMessageComponent({ 
+              filter, 
+              time: 15000 
+            });
+            
+            if (selected && selected.isStringSelectMenu()) {
+              const selectedOption = selected.values[0];
+              
+              // DMを送信
+              const dmChannel = await interaction.user.createDM();
+              let dmContent = `**${item.name}** の購入ありがとうございます！\n\n`;
+              
+              // 選択されたオプションを表示
+              dmContent += `選択されたオプション: **${selectedOption}**\n\n`;
+              dmContent += `ここに購入した商品の内容を記載します:\n\n${item.content}`;
+              
+              await dmChannel.send({
+                content: dmContent
+              });
+              
+              // 選択後のメッセージを更新
+              await selected.update({
+                content: `${item.name} を ${quantity} 個購入しました！残高: ${discordUser.balance - totalPrice} コイン\n\n選択されたオプション: **${selectedOption}**\n\n📩 商品の詳細はDMをご確認ください。`,
+                components: []
+              });
+            }
+          } catch (error) {
+            console.error('Option selection error:', error);
+            await interaction.editReply({
+              content: `${item.name} を ${quantity} 個購入しました！残高: ${discordUser.balance - totalPrice} コイン\n\n⚠️ オプション選択がタイムアウトしました。`,
+              components: []
+            });
+          }
+        } else {
+          // 選択肢がない場合は通常の購入完了処理
+          let successMessage = `${item.name} を ${quantity} 個購入しました！残高: ${discordUser.balance - totalPrice} コイン`;
+          
+          // DMでコンテンツを送信
+          if (item.content) {
+            try {
+              const dmChannel = await interaction.user.createDM();
+              let dmContent = `**${item.name}** の購入ありがとうございます！\n\n`;
+              dmContent += `ここに購入した商品の内容を記載します:\n\n${item.content}`;
+              
+              await dmChannel.send({
+                content: dmContent
+              });
+              
+              successMessage += `\n\n📩 商品の詳細はDMをご確認ください。`;
+            } catch (error) {
+              console.error("Failed to send DM:", error);
+              successMessage += `\n\n⚠️ DMの送信に失敗しました。プライバシー設定を確認してください。`;
+            }
+          }
+          
+          await interaction.editReply(successMessage);
+        }
         
         // Send public message (optional)
         const publicEmbed = new EmbedBuilder()
