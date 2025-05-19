@@ -357,9 +357,11 @@ async function handleShowCommand(message: Message, storage: IStorage) {
           // アイテムのコンテンツがある場合はDMで送信
           if (updatedItem.content) {
             try {
-              await interaction.user.send({
-                content: `🎁 商品の詳細情報: ${updatedItem.name}\n\n${updatedItem.content}`
-              });
+              // DMチャンネルを作成してからメッセージを送信
+              const dmChannel = await interaction.user.createDM();
+              await dmChannel.send(`🎁 商品の詳細情報: ${updatedItem.name}\n\n${updatedItem.content}`);
+              
+              console.log(`DMが正常に送信されました: ${interaction.user.username}`);
             } catch (dmError) {
               console.error('Error sending DM:', dmError);
               // DMが送れない場合は通知
