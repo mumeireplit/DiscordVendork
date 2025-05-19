@@ -1477,6 +1477,17 @@ async function handleCheckoutCommand(message: Message, storage: IStorage) {
                 if (dbItem.id === itemId && selectedContentIndex !== null && 
                     dbItem.contentOptions && dbItem.contentOptions[selectedContentIndex]) {
                   contentValue = dbItem.contentOptions[selectedContentIndex];
+                  
+                  // 使用したコンテンツオプションを削除するために、商品を更新する準備
+                  const updatedContentOptions = [...dbItem.contentOptions];
+                  updatedContentOptions.splice(selectedContentIndex, 1);
+                  
+                  // 商品を更新してコンテンツオプションを削除
+                  await storage.updateItem(dbItem.id, {
+                    contentOptions: updatedContentOptions
+                  });
+                  
+                  console.log(`Content option at index ${selectedContentIndex} has been removed from item ID ${dbItem.id}`);
                 }
                 
                 dmEmbed.addFields({
