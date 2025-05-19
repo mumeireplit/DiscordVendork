@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Collection, Events, Message } from 'discord.js';
+import { Client, GatewayIntentBits, Collection, Events, Message, MessageFlags } from 'discord.js';
 import { registerCommands, handleCommand } from './commands';
 import { storage } from '../storage';
 
@@ -58,12 +58,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp({ 
         content: 'コマンドの実行中にエラーが発生しました。', 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
     } else {
       await interaction.reply({ 
         content: 'コマンドの実行中にエラーが発生しました。', 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
     }
   }
