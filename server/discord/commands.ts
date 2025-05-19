@@ -608,7 +608,14 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
       return await message.reply(`在庫が不足しています。現在の在庫: ${item.stock}`);
     }
     
-    // Create confirmation buttons
+    // 選択オプションと購入確認ボタンを準備
+    const totalPrice = item.price * quantity;
+    let selectedOption: string | null = null;
+    
+    // メッセージの内容を準備
+    let contentText = `${item.name} を ${quantity} 個、合計 ${totalPrice} コインで購入しますか？`;
+    
+    // 確認ボタンの準備
     const confirmButton = new ButtonBuilder()
       .setCustomId('confirm_purchase')
       .setLabel('購入する')
@@ -619,21 +626,40 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
       .setLabel('キャンセル')
       .setStyle(ButtonStyle.Secondary);
     
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(confirmButton, cancelButton);
+    const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(confirmButton, cancelButton);
     
-    // Send confirmation message
-    const totalPrice = item.price * quantity;
+    // 選択肢がある場合は選択メニューを追加
+    const components: any[] = [confirmRow];
+    
+    if (item.options && item.options.length > 0) {
+      contentText += '\n\n**選択肢から1つ選んでください**:';
+      
+      // 選択メニューを作成
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('option_select')
+        .setPlaceholder('選択肢を選んでください')
+        .addOptions(
+          item.options.map(option => ({
+            label: option,
+            value: option
+          }))
+        );
+      
+      const selectRow = new ActionRowBuilder<any>().addComponents(selectMenu);
+      components.unshift(selectRow); // 選択肢を先に表示
+    }
+    
+    // 確認メッセージを送信
     const confirmMessage = await message.reply({
-      content: `${item.name} を ${quantity} 個、合計 ${totalPrice} コインで購入しますか？`,
-      components: [row]
+      content: contentText,
+      components: components
     });
     
-    // Create button collector
+    // インタラクションコレクターを作成
     const filter = (i: { user: { id: string; }; }) => i.user.id === message.author.id;
     const collector = confirmMessage.createMessageComponentCollector({ 
       filter, 
-      time: 30000, // 30秒間有効
-      componentType: ComponentType.Button
+      time: 60000, // 60秒間有効
     });
     
     // Handle button interactions

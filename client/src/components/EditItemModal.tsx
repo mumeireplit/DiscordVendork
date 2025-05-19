@@ -240,6 +240,54 @@ export default function EditItemModal({ open, onOpenChange, item }: EditItemModa
               )}
             />
             
+            {/* 選択肢の入力部分 */}
+            <div className="space-y-2">
+              <FormLabel>選択肢 (オプション)</FormLabel>
+              <div className="flex items-center space-x-2">
+                <Input
+                  placeholder="選択肢を入力（例：赤、XL、タイプA）"
+                  value={optionInput}
+                  onChange={(e) => setOptionInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addOption();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={addOption}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                </Button>
+              </div>
+              <FormDescription>
+                Enterキーまたは+ボタンで選択肢を追加できます。購入時に表示される選択肢です。
+              </FormDescription>
+              
+              {/* 選択肢のリスト */}
+              {form.watch("options")?.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {form.watch("options").map((option, index) => (
+                    <div key={index} className="flex items-center justify-between rounded border p-2">
+                      <span>{option}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeOption(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
             <FormField
               control={form.control}
               name="isActive"

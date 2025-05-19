@@ -66,6 +66,8 @@ export const insertItemSchema = createInsertSchema(items).pick({
   isActive: true,
   infiniteStock: true,
   discordRoleId: true,
+  content: true,
+  options: true,
 });
 
 export const insertDiscordUserSchema = createInsertSchema(discordUsers).pick({
