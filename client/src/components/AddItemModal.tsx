@@ -35,6 +35,7 @@ const formSchema = insertItemSchema.extend({
   description: z.string().min(1, "説明は必須項目です"),
   price: z.number().min(0, "価格は0以上の値を指定してください"),
   stock: z.number().min(0, "在庫数は0以上の値を指定してください"),
+  content: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -59,6 +60,7 @@ export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) 
       isActive: true,
       infiniteStock: false,
       discordRoleId: "",
+      content: "",
     },
   });
 
@@ -197,6 +199,27 @@ export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) 
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="content"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>コンテンツ (オプション)</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="購入者に送信するURL/コンテンツを入力（DMで送信されます）" 
+                      className="resize-none h-20"
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    購入者にDMで送信される内容です。URLやアクセスコードなどを入力してください。
+                  </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
