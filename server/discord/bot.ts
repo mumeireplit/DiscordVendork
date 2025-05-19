@@ -8,11 +8,12 @@ interface BotClient extends Client {
 }
 
 // Create a Discord client instance
-const client = new Client({
+export const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.DirectMessages,
   ],
 }) as BotClient;
 

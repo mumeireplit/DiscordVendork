@@ -1,4 +1,5 @@
 import { Client, SlashCommandBuilder, EmbedBuilder, CommandInteraction, REST, Routes, Collection, Message, ButtonBuilder, ButtonStyle, ActionRowBuilder, ComponentType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
+import { client } from './bot';
 import { IStorage } from '../storage';
 import { Item } from '@shared/schema';
 
@@ -357,9 +358,9 @@ async function handleShowCommand(message: Message, storage: IStorage) {
           // アイテムのコンテンツがある場合はDMで送信
           if (updatedItem.content) {
             try {
-              // DMチャンネルを作成してからメッセージを送信
-              const dmChannel = await interaction.user.createDM();
-              await dmChannel.send(`🎁 商品の詳細情報: ${updatedItem.name}\n\n${updatedItem.content}`);
+              // クライアントからユーザーを取得して、DMを送信
+              const user = await client.users.fetch(interaction.user.id);
+              await user.send(`🎁 商品の詳細情報: ${updatedItem.name}\n\n${updatedItem.content}`);
               
               console.log(`DMが正常に送信されました: ${interaction.user.username}`);
             } catch (dmError) {
