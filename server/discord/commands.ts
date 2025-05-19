@@ -1,4 +1,4 @@
-import { Client, SlashCommandBuilder, EmbedBuilder, CommandInteraction, REST, Routes, Collection, Message, ButtonBuilder, ButtonStyle, ActionRowBuilder, ComponentType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, PermissionFlagsBits } from 'discord.js';
+import { Client, SlashCommandBuilder, EmbedBuilder, CommandInteraction, REST, Routes, Collection, Message, ButtonBuilder, ButtonStyle, ActionRowBuilder, ComponentType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
 import { IStorage } from '../storage';
 import { Item } from '@shared/schema';
 
@@ -250,7 +250,7 @@ async function handleShowCommand(message: Message, storage: IStorage) {
       if (interaction.user.id !== message.author.id) {
         return await interaction.reply({ 
           content: 'この操作はメッセージの送信者のみ実行できます。`!show`コマンドで自分のリストを表示してください。', 
-          ephemeral: true 
+          flags: MessageFlags.Ephemeral
         });
       }
       
@@ -286,7 +286,7 @@ async function handleShowCommand(message: Message, storage: IStorage) {
         await interaction.reply({
           content: `${item.name} を ${quantity} 個、合計 ${item.price * quantity} ${currencyName} で購入しますか？`,
           components: [confirmRow],
-          flags: { ephemeral: true }
+          flags: MessageFlags.Ephemeral
         });
       }
       else if (customId.startsWith('confirm_buy_')) {
