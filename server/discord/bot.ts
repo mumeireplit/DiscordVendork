@@ -27,44 +27,46 @@ client.once(Events.ClientReady, async () => {
   await registerCommands(client);
 });
 
-// Process interaction events (スラッシュコマンド)
+// Process interaction events (スラッシュコマンドとボタンインタラクション)
 client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isCommand()) return;
-
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return;
-
   try {
-    // Check if command is vending related
-    if (interaction.commandName.startsWith('vending')) {
-      // Get or create discord user in our database
-      const discordId = interaction.user.id;
-      let discordUser = await storage.getDiscordUserByDiscordId(discordId);
-      
-      if (!discordUser) {
-        discordUser = await storage.createDiscordUser({
-          discordId,
-          username: interaction.user.username,
-          balance: 0 // Start with 0 coins
-        });
-      }
-    }
+    // Get or create discord user in our database for any interaction
+    const discordId = interaction.user.id;
+    let discordUser = await storage.getDiscordUserByDiscordId(discordId);
     
-    await command.execute(interaction, storage);
+    if (!discordUser) {
+      discordUser = await storage.createDiscordUser({
+        discordId,
+        username: interaction.user.username,
+        balance: 0 // Start with 0 coins
+      });
+    }
+
+    // Handle slash commands
+    if (interaction.isCommand()) {
+      const command = client.commands.get(interaction.commandName);
+      if (!command) return;
+      
+      await command.execute(interaction, storage);
+    }
+    // The bot will now properly process button interactions through the message collectors
+    // that were set up in the commands.ts file
   } catch (error) {
-    console.error(error);
+    console.error('Error handling interaction:', error);
     
     // Reply with error if the interaction hasn't been replied to yet
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ 
-        content: 'コマンドの実行中にエラーが発生しました。', 
-        flags: MessageFlags.Ephemeral 
-      });
-    } else {
-      await interaction.reply({ 
-        content: 'コマンドの実行中にエラーが発生しました。', 
-        flags: MessageFlags.Ephemeral 
-      });
+    if (interaction.isRepliable()) {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ 
+          content: 'インタラクションの処理中にエラーが発生しました。', 
+          flags: MessageFlags.Ephemeral 
+        });
+      } else {
+        await interaction.reply({ 
+          content: 'インタラクションの処理中にエラーが発生しました。', 
+          flags: MessageFlags.Ephemeral 
+        });
+      }
     }
   }
 });
