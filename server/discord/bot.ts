@@ -57,19 +57,41 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isButton()) {
       console.log(`Processing button interaction: ${interaction.customId}`);
       
-      // カスタムIDがconfirm_purchaseで始まる場合は購入処理
-      if (interaction.customId === 'confirm_purchase') {
+      // 様々な購入ボタンのパターンをサポート
+      if (interaction.customId === 'confirm_purchase' || 
+          interaction.customId.startsWith('confirm_buy_') || 
+          interaction.customId.startsWith('direct_buy_')) {
         try {
-          // 元のメッセージの内容を取得してコレクターに任せる
-          console.log('Purchase button pressed, letting the collector handle it');
-          // 何もせずに、コレクターがこのインタラクションを処理するのを待つ
+          // 購入関連のボタンが押されたことをログに記録
+          console.log(`Purchase-related button pressed: ${interaction.customId}`);
+          
+          // この時点ではまだ応答しない - コレクターがこのインタラクションを処理するのを待つ
+          // コレクターが3秒以内に処理しなかった場合のみ、ここでフォールバック応答する
+          setTimeout(async () => {
+            try {
+              // まだ応答がない場合は、フォールバックメッセージを送信
+              if (!interaction.replied && !interaction.deferred) {
+                console.log(`Fallback handling for interaction ${interaction.id}`);
+                await interaction.reply({
+                  content: '処理中です...',
+                  flags: MessageFlags.Ephemeral
+                });
+              }
+            } catch (timeoutError) {
+              console.error('Error in timeout fallback:', timeoutError);
+            }
+          }, 3000);
         } catch (error) {
           console.error('Error in direct button handling:', error);
-          if (!interaction.replied) {
-            await interaction.reply({ 
-              content: 'ボタン処理中にエラーが発生しました。もう一度お試しください。', 
-              flags: MessageFlags.Ephemeral
-            });
+          try {
+            if (!interaction.replied && !interaction.deferred) {
+              await interaction.reply({ 
+                content: 'ボタン処理中にエラーが発生しました。もう一度お試しください。', 
+                flags: MessageFlags.Ephemeral
+              });
+            }
+          } catch (replyError) {
+            console.error('Failed to send error message:', replyError);
           }
         }
       }
