@@ -20,6 +20,7 @@ export const items = pgTable("items", {
   infiniteStock: boolean("infinite_stock").notNull().default(false),
   discordRoleId: text("discord_role_id"),
   content: text("content"), // URLや購入後にDMで送信するコンテンツ
+  contentOptions: text("content_options").array(), // 購入後にDMで送信する複数のコンテンツオプション
   options: text("options").array(), // 商品の選択肢（例：色、サイズ、種類など）
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -67,6 +68,7 @@ export const insertItemSchema = createInsertSchema(items).pick({
   infiniteStock: true,
   discordRoleId: true,
   content: true,
+  contentOptions: true,
   options: true,
 });
 

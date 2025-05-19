@@ -37,6 +37,7 @@ const formSchema = insertItemSchema.extend({
   price: z.number().min(0, "価格は0以上の値を指定してください"),
   stock: z.number().min(0, "在庫数は0以上の値を指定してください"),
   content: z.string().optional(),
+  contentOptions: z.array(z.string()).optional(),
   options: z.array(z.string()).optional(),
 });
 

@@ -37,6 +37,7 @@ const formSchema = insertItemSchema.extend({
   price: z.number().min(0, "価格は0以上の値を指定してください"),
   stock: z.number().min(0, "在庫数は0以上の値を指定してください"),
   content: z.string().optional(),
+  contentOptions: z.array(z.string()).optional(),
   options: z.array(z.string()).optional(),
 });
 
@@ -50,6 +51,7 @@ interface AddItemModalProps {
 export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) {
   const [isPending, setIsPending] = useState(false);
   const [optionInput, setOptionInput] = useState("");
+  const [contentOptionInput, setContentOptionInput] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -64,6 +66,7 @@ export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) 
       infiniteStock: false,
       discordRoleId: "",
       content: "",
+      contentOptions: [],
       options: [],
     },
   });
@@ -83,6 +86,24 @@ export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) 
     form.setValue(
       "options",
       currentOptions.filter((_, i) => i !== index)
+    );
+  };
+  
+  // コンテンツオプションを追加する関数
+  const addContentOption = () => {
+    if (!contentOptionInput.trim()) return;
+    
+    const currentContentOptions = form.getValues("contentOptions") || [];
+    form.setValue("contentOptions", [...currentContentOptions, contentOptionInput.trim()]);
+    setContentOptionInput("");
+  };
+  
+  // コンテンツオプションを削除する関数
+  const removeContentOption = (index: number) => {
+    const currentContentOptions = form.getValues("contentOptions") || [];
+    form.setValue(
+      "contentOptions",
+      currentContentOptions.filter((_, i) => i !== index)
     );
   };
 
@@ -230,7 +251,7 @@ export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) 
               name="content"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>コンテンツ (オプション)</FormLabel>
+                  <FormLabel>基本コンテンツ (オプション)</FormLabel>
                   <FormControl>
                     <Textarea 
                       placeholder="購入者に送信するURL/コンテンツを入力（DMで送信されます）" 
@@ -239,12 +260,60 @@ export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) 
                     />
                   </FormControl>
                   <FormDescription>
-                    購入者にDMで送信される内容です。URLやアクセスコードなどを入力してください。
+                    購入者にDMで送信される基本コンテンツです。複数選択肢が必要な場合は下の「コンテンツ選択肢」も入力してください。
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            
+            {/* コンテンツオプションの入力部分 */}
+            <div className="space-y-2">
+              <FormLabel>コンテンツ選択肢 (オプション)</FormLabel>
+              <div className="flex items-center space-x-2">
+                <Input
+                  placeholder="DM送信するコンテンツ選択肢を入力（例：アイテムA用のコード、アイテムB用のコード等）"
+                  value={contentOptionInput}
+                  onChange={(e) => setContentOptionInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addContentOption();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={addContentOption}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                </Button>
+              </div>
+              <FormDescription>
+                購入者がDMで受け取る複数のコンテンツ選択肢です。購入確認時にどれを送信するか選択できます。
+              </FormDescription>
+              
+              {/* コンテンツ選択肢のリスト */}
+              {form.watch("contentOptions")?.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {form.watch("contentOptions").map((option, index) => (
+                    <div key={index} className="flex items-center justify-between rounded border p-2">
+                      <span>{option}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeContentOption(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             
             <FormField
               control={form.control}
