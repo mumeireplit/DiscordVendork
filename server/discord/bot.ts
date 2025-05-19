@@ -27,9 +27,11 @@ client.once(Events.ClientReady, async () => {
   await registerCommands(client);
 });
 
-// Process interaction events (スラッシュコマンドとボタンインタラクション)
+// Process interaction events (both slash commands and button interactions)
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
+    console.log(`Received interaction: ${interaction.type}, ID: ${interaction.id}`);
+    
     // Get or create discord user in our database for any interaction
     const discordId = interaction.user.id;
     let discordUser = await storage.getDiscordUserByDiscordId(discordId);
@@ -44,29 +46,35 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     // Handle slash commands
     if (interaction.isCommand()) {
+      console.log(`Processing slash command: ${interaction.commandName}`);
       const command = client.commands.get(interaction.commandName);
       if (!command) return;
       
       await command.execute(interaction, storage);
     }
-    // The bot will now properly process button interactions through the message collectors
-    // that were set up in the commands.ts file
+    
+    // Note: Button interactions are handled by collectors in the commands.ts file
+    // This is just a fallback error handler
   } catch (error) {
     console.error('Error handling interaction:', error);
     
-    // Reply with error if the interaction hasn't been replied to yet
-    if (interaction.isRepliable()) {
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ 
-          content: 'インタラクションの処理中にエラーが発生しました。', 
-          flags: MessageFlags.Ephemeral 
-        });
-      } else {
-        await interaction.reply({ 
-          content: 'インタラクションの処理中にエラーが発生しました。', 
-          flags: MessageFlags.Ephemeral 
-        });
+    try {
+      // Reply with error if the interaction hasn't been replied to yet
+      if (interaction.isRepliable()) {
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp({ 
+            content: 'インタラクションの処理中にエラーが発生しました。もう一度お試しください。', 
+            ephemeral: true
+          });
+        } else {
+          await interaction.reply({ 
+            content: 'インタラクションの処理中にエラーが発生しました。もう一度お試しください。', 
+            ephemeral: true
+          });
+        }
       }
+    } catch (followupError) {
+      console.error('Failed to send error message:', followupError);
     }
   }
 });
