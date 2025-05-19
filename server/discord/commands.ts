@@ -529,30 +529,24 @@ async function handleShowCommand(message: Message, storage: IStorage) {
         });
       }
       else if (customId.startsWith('direct_buy_')) {
-        // 詳細画面からの直接購入 - 確認なしで直接購入する
+        // 詳細画面からの直接購入 - 確認なしで直接購入するように変更
         const [_, __, itemId, quantity] = customId.split('_').map(Number);
         
-        // 最初に処理中を表示
-        await interaction.update({
-          content: `処理中です...`,
-          components: []
-        });
-        
-        // 商品情報を取得
+        // いったん確認画面を表示
         const item = await storage.getItem(itemId);
         if (!item) {
-          return await interaction.update({
+          return await interaction.reply({
             content: '商品が見つかりません。',
-            components: []
+            ephemeral: true
           });
         }
         
         // ユーザー情報を取得
         const discordUser = await storage.getDiscordUserByDiscordId(interaction.user.id);
         if (!discordUser) {
-          return await interaction.update({
+          return await interaction.reply({
             content: 'ユーザー情報が見つかりません。',
-            components: []
+            ephemeral: true
           });
         }
         
@@ -560,21 +554,27 @@ async function handleShowCommand(message: Message, storage: IStorage) {
         
         // 残高確認
         if (discordUser.balance < totalPrice) {
-          return await interaction.update({
+          return await interaction.reply({
             content: `残高が不足しています。必要な金額: ${totalPrice} ${currencyName}、現在の残高: ${discordUser.balance} ${currencyName}`,
-            components: []
+            ephemeral: true
           });
         }
         
         // 在庫確認
         if (!item.infiniteStock && item.stock < quantity) {
-          return await interaction.update({
+          return await interaction.reply({
             content: `在庫が不足しています。現在の在庫: ${item.stock}`,
-            components: []
+            ephemeral: true
           });
         }
         
         try {
+          // 処理中メッセージ
+          await interaction.reply({
+            content: `${item.name} ${quantity}個を購入中です...`,
+            flags: MessageFlags.Ephemeral
+          });
+          
           // 残高を減らす
           await storage.updateDiscordUserBalance(discordUser.id, -totalPrice);
           
@@ -609,9 +609,8 @@ async function handleShowCommand(message: Message, storage: IStorage) {
           const newBalance = updatedUser ? updatedUser.balance : 0;
           
           // 成功メッセージを表示
-          await interaction.update({
-            content: `✅ ${item.name} を ${quantity} 個購入しました！\n残高: ${newBalance} ${currencyName}`,
-            components: []
+          await interaction.editReply({
+            content: `✅ ${item.name} を ${quantity} 個購入しました！\n残高: ${newBalance} ${currencyName}`
           });
           
           // 公開メッセージ
@@ -621,7 +620,7 @@ async function handleShowCommand(message: Message, storage: IStorage) {
             .setColor('#3BA55C')
             .setTimestamp();
           
-          await interaction.channel?.send({ embeds: [publicEmbed] });
+          await message.channel.send({ embeds: [publicEmbed] });
           
           // アイテムのコンテンツがある場合はDMで送信
           if (item.content) {
@@ -634,16 +633,22 @@ async function handleShowCommand(message: Message, storage: IStorage) {
               // DMが送れない場合は公開チャンネルで通知
               await interaction.followUp({
                 content: `DM送信に失敗しました。プライバシー設定を確認してください。`,
-                flags: MessageFlags.Ephemeral
+                ephemeral: true
               });
             }
           }
         } catch (error) {
           console.error('Error processing direct purchase:', error);
-          await interaction.update({
-            content: '購入処理中にエラーが発生しました。もう一度お試しください。',
-            components: []
-          });
+          if (interaction.replied) {
+            await interaction.editReply({
+              content: '購入処理中にエラーが発生しました。もう一度お試しください。'
+            });
+          } else {
+            await interaction.reply({
+              content: '購入処理中にエラーが発生しました。もう一度お試しください。',
+              ephemeral: true
+            });
+          }
         }
       }
     });
