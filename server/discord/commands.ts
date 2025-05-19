@@ -362,6 +362,23 @@ async function handleShowCommand(message: Message, storage: IStorage) {
             .setTimestamp();
             
           await message.channel.send({ embeds: [publicEmbed] });
+          
+          // アイテムのコンテンツがある場合はDMで送信
+          if (item.content) {
+            try {
+              // Discord.js v14では直接DMを送信できる
+              await interaction.user.send({
+                content: `🎁 商品の詳細情報: ${item.name}\n\n${item.content}`
+              });
+            } catch (dmError) {
+              console.error('Error sending DM:', dmError);
+              // DMが送れない場合はエフェメラルメッセージで通知
+              await interaction.followUp({
+                content: 'DMが送信できませんでした。プライバシー設定を確認してください。',
+                flags: MessageFlags.Ephemeral
+              });
+            }
+          }
         } catch (error) {
           console.error('Error processing buy:', error);
           await interaction.update({
