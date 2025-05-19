@@ -19,6 +19,7 @@ export const items = pgTable("items", {
   isActive: boolean("is_active").notNull().default(true),
   infiniteStock: boolean("infinite_stock").notNull().default(false),
   discordRoleId: text("discord_role_id"),
+  content: text("content"), // URLや購入後にDMで送信するコンテンツ
   createdAt: timestamp("created_at").defaultNow(),
 });
 

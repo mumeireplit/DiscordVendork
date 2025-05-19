@@ -1100,10 +1100,38 @@ async function handleCheckoutCommand(message: Message, storage: IStorage) {
             components: []
           });
           
-          // 購入通知を送信
+          // DMで購入した商品の詳細を送信
+          try {
+            const dmEmbed = new EmbedBuilder()
+              .setTitle('🎉 購入完了のお知らせ')
+              .setDescription('ご購入いただきありがとうございます。以下が購入内容です。')
+              .setColor('#3BA55C')
+              .setTimestamp();
+            
+            // 各商品の詳細情報をDMに含める
+            for (const cartItem of cart.items) {
+              const dbItem = await storage.getItem(cartItem.itemId);
+              if (dbItem) {
+                dmEmbed.addFields({
+                  name: `${dbItem.name} (${cartItem.quantity}個)`,
+                  value: dbItem.content || dbItem.description || 'コンテンツはありません'
+                });
+              }
+            }
+            
+            await message.author.send({ embeds: [dmEmbed] });
+          } catch (dmError) {
+            console.error('Error sending DM:', dmError);
+            // DMが送信できない場合はチャンネルで通知
+            await message.channel.send({ 
+              content: `${message.author}さん、DMが送信できませんでした。プライバシー設定を確認してください。` 
+            });
+          }
+          
+          // 購入通知を送信（公開チャンネル）
           const publicEmbed = new EmbedBuilder()
             .setTitle('🛍️ 商品が購入されました！')
-            .setDescription(`${message.author.username} が ${cart.items.length} 種類の商品を購入しました！`)
+            .setDescription(`${message.author.username} が ${cart.items.length} 種類の商品を購入しました！詳細はDMで送信されました。`)
             .setColor('#3BA55C')
             .setTimestamp();
             
