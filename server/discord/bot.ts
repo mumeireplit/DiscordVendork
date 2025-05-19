@@ -53,8 +53,29 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await command.execute(interaction, storage);
     }
     
-    // Note: Button interactions are handled by collectors in the commands.ts file
-    // This is just a fallback error handler
+    // ボタンインタラクションも直接ここで処理する
+    if (interaction.isButton()) {
+      console.log(`Processing button interaction: ${interaction.customId}`);
+      
+      // カスタムIDがconfirm_purchaseで始まる場合は購入処理
+      if (interaction.customId === 'confirm_purchase') {
+        try {
+          // 元のメッセージの内容を取得してコレクターに任せる
+          console.log('Purchase button pressed, letting the collector handle it');
+          // 何もせずに、コレクターがこのインタラクションを処理するのを待つ
+        } catch (error) {
+          console.error('Error in direct button handling:', error);
+          if (!interaction.replied) {
+            await interaction.reply({ 
+              content: 'ボタン処理中にエラーが発生しました。もう一度お試しください。', 
+              flags: MessageFlags.Ephemeral
+            });
+          }
+        }
+      }
+    }
+    
+    // Note: Most button interactions are handled by collectors in the commands.ts file
   } catch (error) {
     console.error('Error handling interaction:', error);
     
@@ -64,12 +85,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (interaction.replied || interaction.deferred) {
           await interaction.followUp({ 
             content: 'インタラクションの処理中にエラーが発生しました。もう一度お試しください。', 
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
         } else {
           await interaction.reply({ 
             content: 'インタラクションの処理中にエラーが発生しました。もう一度お試しください。', 
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
         }
       }
