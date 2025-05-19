@@ -617,12 +617,12 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
     
     // 確認ボタンの準備
     const confirmButton = new ButtonBuilder()
-      .setCustomId('confirm_purchase')
+      .setCustomId(`confirm_buy_${item.id}_${quantity}`)
       .setLabel('購入する')
       .setStyle(ButtonStyle.Success);
       
     const cancelButton = new ButtonBuilder()
-      .setCustomId('cancel_purchase')
+      .setCustomId(`cancel_buy_${item.id}_${quantity}`)
       .setLabel('キャンセル')
       .setStyle(ButtonStyle.Secondary);
     
@@ -678,7 +678,7 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
         }
         
         // Handle purchase confirmation
-        if (interaction.customId === 'confirm_purchase') {
+        if (interaction.customId === 'confirm_purchase' || interaction.customId.startsWith('confirm_buy_')) {
           console.log('Processing purchase confirmation');
           
           // Check if option is selected when required
@@ -803,7 +803,7 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
               components: []
             });
           }
-        } else if (interaction.customId === 'cancel_purchase') {
+        } else if (interaction.customId === 'cancel_purchase' || interaction.customId.startsWith('cancel_buy_')) {
           await interaction.update({
             content: '購入をキャンセルしました。',
             components: []
