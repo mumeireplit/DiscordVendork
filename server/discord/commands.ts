@@ -795,6 +795,7 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
     // 選択オプションと購入確認ボタンを準備
     const totalPrice = item.price * quantity;
     let selectedOption: string | null = null;
+    let selectedContentIndex: number | null = null;
     
     // メッセージの内容を準備
     let contentText = `${item.name} を ${quantity} 個、合計 ${totalPrice} コインで購入しますか？`;
@@ -815,13 +816,14 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
     // 選択肢がある場合は選択メニューを追加
     const components: any[] = [confirmRow];
     
+    // 商品の選択肢があれば追加
     if (item.options && item.options.length > 0) {
-      contentText += '\n\n**選択肢から1つ選んでください**:';
+      contentText += '\n\n**商品の選択肢から1つ選んでください**:';
       
       // 選択メニューを作成
       const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('option_select')
-        .setPlaceholder('選択肢を選んでください')
+        .setPlaceholder('商品の選択肢を選んでください')
         .addOptions(
           item.options.map(option => ({
             label: option,
@@ -831,6 +833,26 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
       
       const selectRow = new ActionRowBuilder<any>().addComponents(selectMenu);
       components.unshift(selectRow); // 選択肢を先に表示
+    }
+    
+    // コンテンツオプション（DMで送信する選択肢）があれば追加
+    if (item.contentOptions && item.contentOptions.length > 0) {
+      contentText += '\n\n**DMで受け取るコンテンツを選択してください**:';
+      
+      // コンテンツオプション選択メニューを作成
+      const contentSelectMenu = new StringSelectMenuBuilder()
+        .setCustomId('content_option_select')
+        .setPlaceholder('DMで受け取るコンテンツを選択')
+        .addOptions(
+          item.contentOptions.map((option, index) => ({
+            label: `コンテンツオプション ${index + 1}`, 
+            description: option.length > 90 ? option.substring(0, 90) + '...' : option,
+            value: `content_${index}`
+          }))
+        );
+      
+      const contentSelectRow = new ActionRowBuilder<any>().addComponents(contentSelectMenu);
+      components.unshift(contentSelectRow); // コンテンツ選択肢を一番上に表示
     }
     
     // 確認メッセージを送信
