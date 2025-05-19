@@ -165,13 +165,20 @@ export function initBot() {
   const token = process.env.DISCORD_BOT_TOKEN;
   
   if (!token) {
-    console.error('DISCORD_BOT_TOKEN is not defined in environment');
-    return;
+    console.warn('DISCORD_BOT_TOKEN is not defined in environment - Discord bot functionality will be disabled');
+    return client; // ボットは起動しないが、サーバー自体は起動できるようにclientを返す
   }
   
-  client.login(token).catch(err => {
-    console.error('Failed to login to Discord:', err);
-  });
+  console.log('Attempting to login to Discord...');
+  
+  client.login(token)
+    .then(() => {
+      console.log('Successfully logged in to Discord');
+    })
+    .catch(err => {
+      console.error('Failed to login to Discord:', err);
+      console.warn('Discord bot functionality will be disabled, but the server will continue running');
+    });
   
   return client;
 }

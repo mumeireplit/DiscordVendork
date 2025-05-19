@@ -6,6 +6,10 @@ import { initBot } from "./discord/bot";
 import { insertItemSchema, insertBotSettingsSchema, insertTransactionSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Renderのヘルスチェック用エンドポイント
+  app.get('/api/health', (_req, res) => {
+    res.status(200).json({ status: 'ok' });
+  });
   // Initialize Discord bot
   const bot = initBot();
   
