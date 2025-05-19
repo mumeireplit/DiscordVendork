@@ -258,36 +258,123 @@ async function handleShowCommand(message: Message, storage: IStorage) {
       
       // ボタンのIDを解析して処理
       if (customId.startsWith('buy_')) {
-        // 直接購入処理
+        // 直接購入処理 - 確認なしで直接購入
         const [_, itemId, quantity] = customId.split('_').map(Number);
         
-        // 購入確認メッセージを表示
+        // 商品情報を取得
         const item = activeItems.find(i => i.id === itemId);
         
         if (!item) {
           return await interaction.reply({
             content: '商品が見つかりません。',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
         }
         
-        const confirmRow = new ActionRowBuilder<ButtonBuilder>()
-          .addComponents(
-            new ButtonBuilder()
-              .setCustomId(`confirm_buy_${itemId}_${quantity}`)
-              .setLabel('購入する')
-              .setStyle(ButtonStyle.Success),
-            new ButtonBuilder()
-              .setCustomId('cancel_buy')
-              .setLabel('キャンセル')
-              .setStyle(ButtonStyle.Secondary)
-          );
-        
+        // 処理中メッセージを表示
         await interaction.reply({
-          content: `${item.name} を ${quantity} 個、合計 ${item.price * quantity} ${currencyName} で購入しますか？`,
-          components: [confirmRow],
+          content: `${item.name} ${quantity}個を購入処理中です...`,
           flags: MessageFlags.Ephemeral
         });
+        
+        try {
+          // ユーザー情報を取得
+          let discordUser = await storage.getDiscordUserByDiscordId(interaction.user.id);
+          
+          if (!discordUser) {
+            // ユーザーが存在しない場合は作成
+            discordUser = await storage.createDiscordUser({
+              discordId: interaction.user.id,
+              username: interaction.user.username,
+              balance: 500 // 初期残高
+            });
+          }
+          
+          const totalPrice = item.price * quantity;
+          
+          // 残高確認
+          if (discordUser.balance < totalPrice) {
+            return await interaction.editReply({
+              content: `残高が不足しています。必要な金額: ${totalPrice} ${currencyName}、現在の残高: ${discordUser.balance} ${currencyName}`
+            });
+          }
+          
+          // 在庫確認
+          const updatedItem = await storage.getItem(item.id);
+          if (!updatedItem || (!updatedItem.infiniteStock && updatedItem.stock < quantity)) {
+            return await interaction.editReply({
+              content: `在庫が不足しています。現在の在庫: ${updatedItem ? updatedItem.stock : 0}`
+            });
+          }
+          
+          // 残高を減らす
+          await storage.updateDiscordUserBalance(discordUser.id, -totalPrice);
+          
+          // 在庫を減らす（無限在庫でない場合）
+          if (!updatedItem.infiniteStock) {
+            await storage.updateItem(updatedItem.id, { 
+              stock: updatedItem.stock - quantity 
+            });
+          }
+          
+          // トランザクションを記録
+          await storage.createTransaction({
+            discordUserId: discordUser.id,
+            itemId: updatedItem.id,
+            quantity: quantity,
+            totalPrice: totalPrice
+          });
+          
+          // ロールを付与（該当する場合）
+          if (updatedItem.discordRoleId && interaction.guild) {
+            try {
+              const member = await interaction.guild.members.fetch(interaction.user.id);
+              await member.roles.add(updatedItem.discordRoleId);
+            } catch (roleError) {
+              console.error('Error adding role:', roleError);
+              // ロール付与エラーは無視して続行
+            }
+          }
+          
+          // 更新された残高を取得
+          const updatedUser = await storage.getDiscordUser(discordUser.id);
+          const newBalance = updatedUser ? updatedUser.balance : 0;
+          
+          // 成功メッセージを表示
+          await interaction.editReply({
+            content: `✅ ${updatedItem.name} を ${quantity} 個購入しました！\n残高: ${newBalance} ${currencyName}`
+          });
+          
+          // 公開メッセージ
+          const publicEmbed = new EmbedBuilder()
+            .setTitle('🛒 商品が購入されました！')
+            .setDescription(`${interaction.user.username} が ${updatedItem.name} を ${quantity} 個購入しました！`)
+            .setColor('#3BA55C')
+            .setTimestamp();
+          
+          await message.channel.send({ embeds: [publicEmbed] });
+          
+          // アイテムのコンテンツがある場合はDMで送信
+          if (updatedItem.content) {
+            try {
+              await interaction.user.send({
+                content: `🎁 商品の詳細情報: ${updatedItem.name}\n\n${updatedItem.content}`
+              });
+            } catch (dmError) {
+              console.error('Error sending DM:', dmError);
+              // DMが送れない場合は通知
+              await interaction.followUp({
+                content: `DM送信に失敗しました。プライバシー設定を確認してください。`,
+                flags: MessageFlags.Ephemeral
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error processing buy command:', error);
+          await interaction.editReply({
+            content: '購入処理中にエラーが発生しました。'
+          });
+        }
       }
       else if (customId.startsWith('confirm_buy_')) {
         // 購入確認処理
