@@ -873,13 +873,47 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
       try {
         console.log(`Interaction received: ${interaction.customId}`);
         
-        // Handle select menu interaction
+        // Handle product option select menu interaction
         if (interaction.customId === 'option_select' && interaction.isStringSelectMenu()) {
           selectedOption = interaction.values[0];
+          
+          // Update message with selected option
+          let updatedContent = contentText;
+          if (selectedOption) {
+            updatedContent += `\n\n選択された商品オプション: **${selectedOption}**`;
+          }
+          if (selectedContentIndex !== null && item.contentOptions && item.contentOptions[selectedContentIndex]) {
+            updatedContent += `\n\n選択されたDMコンテンツ: **オプション ${selectedContentIndex + 1}**`;
+          }
+          
           await interaction.update({
-            content: `${contentText}\n\n選択されたオプション: **${selectedOption}**`,
+            content: updatedContent,
             components: components
           });
+          return;
+        }
+        
+        // Handle content option select menu interaction
+        if (interaction.customId === 'content_option_select' && interaction.isStringSelectMenu()) {
+          const selectedValue = interaction.values[0];
+          if (selectedValue.startsWith('content_')) {
+            // Extract the index from the value (format: 'content_X')
+            selectedContentIndex = parseInt(selectedValue.split('_')[1]);
+            
+            // Update message with selected content option
+            let updatedContent = contentText;
+            if (selectedOption) {
+              updatedContent += `\n\n選択された商品オプション: **${selectedOption}**`;
+            }
+            if (selectedContentIndex !== null && item.contentOptions && item.contentOptions[selectedContentIndex]) {
+              updatedContent += `\n\n選択されたDMコンテンツ: **オプション ${selectedContentIndex + 1}**`;
+            }
+            
+            await interaction.update({
+              content: updatedContent,
+              components: components
+            });
+          }
           return;
         }
         
@@ -887,10 +921,19 @@ async function handleBuyCommand(message: Message, args: string[], storage: IStor
         if (interaction.customId === 'confirm_purchase' || interaction.customId.startsWith('confirm_buy_')) {
           console.log('Processing purchase confirmation');
           
-          // Check if option is selected when required
+          // Check if product option is selected when required
           if (item.options && item.options.length > 0 && !selectedOption) {
             await interaction.update({
-              content: `${contentText}\n\n⚠️ オプションを選択してください。`,
+              content: `${contentText}\n\n⚠️ 商品オプションを選択してください。`,
+              components: components
+            });
+            return;
+          }
+          
+          // Check if content option is selected when required
+          if (item.contentOptions && item.contentOptions.length > 0 && selectedContentIndex === null) {
+            await interaction.update({
+              content: `${contentText}\n\n⚠️ DMで受け取るコンテンツを選択してください。`,
               components: components
             });
             return;
@@ -1427,9 +1470,18 @@ async function handleCheckoutCommand(message: Message, storage: IStorage) {
             for (const cartItem of cart.items) {
               const dbItem = await storage.getItem(cartItem.itemId);
               if (dbItem) {
+                // 選択されたコンテンツオプションがあれば使用する
+                let contentValue = dbItem.content || dbItem.description || 'コンテンツはありません';
+                
+                // カートアイテムが現在のアイテムと同じで、コンテンツオプションが選択されていれば使用
+                if (dbItem.id === itemId && selectedContentIndex !== null && 
+                    dbItem.contentOptions && dbItem.contentOptions[selectedContentIndex]) {
+                  contentValue = dbItem.contentOptions[selectedContentIndex];
+                }
+                
                 dmEmbed.addFields({
                   name: `${dbItem.name} (${cartItem.quantity}個)`,
-                  value: dbItem.content || dbItem.description || 'コンテンツはありません'
+                  value: contentValue
                 });
               }
             }
