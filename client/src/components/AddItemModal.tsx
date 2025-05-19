@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertItemSchema } from "@shared/schema";
+import { PlusCircle, X } from "lucide-react";
 
 import {
   Dialog,
@@ -36,6 +37,7 @@ const formSchema = insertItemSchema.extend({
   price: z.number().min(0, "価格は0以上の値を指定してください"),
   stock: z.number().min(0, "在庫数は0以上の値を指定してください"),
   content: z.string().optional(),
+  options: z.array(z.string()).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -47,6 +49,7 @@ interface AddItemModalProps {
 
 export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) {
   const [isPending, setIsPending] = useState(false);
+  const [optionInput, setOptionInput] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -61,8 +64,27 @@ export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) 
       infiniteStock: false,
       discordRoleId: "",
       content: "",
+      options: [],
     },
   });
+  
+  // 選択肢を追加する関数
+  const addOption = () => {
+    if (!optionInput.trim()) return;
+    
+    const currentOptions = form.getValues("options") || [];
+    form.setValue("options", [...currentOptions, optionInput.trim()]);
+    setOptionInput("");
+  };
+  
+  // 選択肢を削除する関数
+  const removeOption = (index: number) => {
+    const currentOptions = form.getValues("options") || [];
+    form.setValue(
+      "options",
+      currentOptions.filter((_, i) => i !== index)
+    );
+  };
 
   const onSubmit = async (data: FormValues) => {
     setIsPending(true);
@@ -240,6 +262,54 @@ export default function AddItemModal({ open, onOpenChange }: AddItemModalProps) 
                 </FormItem>
               )}
             />
+            
+            {/* 選択肢の入力部分 */}
+            <div className="space-y-2">
+              <FormLabel>選択肢 (オプション)</FormLabel>
+              <div className="flex items-center space-x-2">
+                <Input
+                  placeholder="選択肢を入力（例：赤、XL、タイプA）"
+                  value={optionInput}
+                  onChange={(e) => setOptionInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addOption();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={addOption}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                </Button>
+              </div>
+              <FormDescription>
+                Enterキーまたは+ボタンで選択肢を追加できます。購入時に表示される選択肢です。
+              </FormDescription>
+              
+              {/* 選択肢のリスト */}
+              {form.watch("options")?.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {form.watch("options").map((option, index) => (
+                    <div key={index} className="flex items-center justify-between rounded border p-2">
+                      <span>{option}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeOption(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             
             <FormField
               control={form.control}

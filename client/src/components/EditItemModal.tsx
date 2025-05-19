@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertItemSchema, Item } from "@shared/schema";
+import { PlusCircle, X } from "lucide-react";
 
 import {
   Dialog,
@@ -36,6 +37,7 @@ const formSchema = insertItemSchema.extend({
   price: z.number().min(0, "価格は0以上の値を指定してください"),
   stock: z.number().min(0, "在庫数は0以上の値を指定してください"),
   content: z.string().optional(),
+  options: z.array(z.string()).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -48,6 +50,7 @@ interface EditItemModalProps {
 
 export default function EditItemModal({ open, onOpenChange, item }: EditItemModalProps) {
   const [isPending, setIsPending] = useState(false);
+  const [optionInput, setOptionInput] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -62,8 +65,27 @@ export default function EditItemModal({ open, onOpenChange, item }: EditItemModa
       infiniteStock: item.infiniteStock || false,
       discordRoleId: item.discordRoleId || "",
       content: item.content || "",
+      options: item.options || [],
     },
   });
+  
+  // 選択肢を追加する関数
+  const addOption = () => {
+    if (!optionInput.trim()) return;
+    
+    const currentOptions = form.getValues("options") || [];
+    form.setValue("options", [...currentOptions, optionInput.trim()]);
+    setOptionInput("");
+  };
+  
+  // 選択肢を削除する関数
+  const removeOption = (index: number) => {
+    const currentOptions = form.getValues("options") || [];
+    form.setValue(
+      "options",
+      currentOptions.filter((_, i) => i !== index)
+    );
+  };
 
   const onSubmit = async (data: FormValues) => {
     setIsPending(true);
