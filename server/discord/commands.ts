@@ -286,7 +286,7 @@ async function handleShowCommand(message: Message, storage: IStorage) {
         await interaction.reply({
           content: `${item.name} を ${quantity} 個、合計 ${item.price * quantity} ${currencyName} で購入しますか？`,
           components: [confirmRow],
-          ephemeral: true
+          flags: { ephemeral: true }
         });
       }
       else if (customId.startsWith('confirm_buy_')) {
