@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./index"; // ストレージをindex.tsからインポート
 import { z } from "zod";
 import { initBot } from "./discord/bot";
 import { insertItemSchema, insertBotSettingsSchema, insertTransactionSchema } from "@shared/schema";
