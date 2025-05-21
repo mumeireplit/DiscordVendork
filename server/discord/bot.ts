@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, Collection, Events, Message, MessageFlags } from 'discord.js';
 import { registerCommands, handleCommand } from './commands';
-import { storage } from '../storage';
+import { storage } from '../index'; // インポート元をindex.tsに変更
 
 // Extend Discord.js Client to add commands property
 interface BotClient extends Client {

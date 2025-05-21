@@ -2,6 +2,7 @@ import { Client, SlashCommandBuilder, EmbedBuilder, CommandInteraction, REST, Ro
 import { client } from './bot';
 import { IStorage } from '../storage';
 import { Item } from '@shared/schema';
+import { storage } from '../index'; // インポート元をindex.tsに変更
 
 // Discord内で使用するユーザーごとのカートを管理
 interface CartItem {

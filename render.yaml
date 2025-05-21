@@ -3,7 +3,7 @@ services:
     name: discord-vending-bot
     env: node
     buildCommand: ./build.sh
-    startCommand: npm start
+    startCommand: node dist/install-modules.js && npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
