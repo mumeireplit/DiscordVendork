@@ -274,7 +274,14 @@ export default function ItemsTable({ items, isLoading }: ItemsTableProps) {
                         <TableCell className="font-mono text-muted-foreground">
                           #{item.id.toString().padStart(3, '0')}
                         </TableCell>
-                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {item.name}
+                          {(item.content || (item.contentOptions && item.contentOptions.length > 0)) && (
+                            <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              DM送信
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell>{item.price} コイン</TableCell>
                         <TableCell>
                           <Badge variant={stockStatus.variant}>{stockStatus.label}</Badge>
@@ -292,6 +299,17 @@ export default function ItemsTable({ items, isLoading }: ItemsTableProps) {
                             >
                               <ShoppingCart className="h-4 w-4" />
                             </Button>
+                            {item.contentOptions && item.contentOptions.length > 0 && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleShowContentOptions(item)}
+                                className="text-blue-600"
+                                title="選択肢を見る"
+                              >
+                                <span className="text-xs font-bold">?</span>
+                              </Button>
+                            )}
                             <Button 
                               variant="ghost" 
                               size="icon" 
