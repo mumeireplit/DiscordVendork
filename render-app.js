@@ -2,7 +2,16 @@
 // API機能 + Discordボット機能
 
 import express from 'express';
-import { Client, Events, GatewayIntentBits, EmbedBuilder } from 'discord.js';
+import { 
+  Client, 
+  Events, 
+  GatewayIntentBits, 
+  EmbedBuilder, 
+  ActionRowBuilder, 
+  ButtonBuilder,
+  ButtonStyle,
+  ComponentType
+} from 'discord.js';
 import 'dotenv/config'; // dotenvをインポートして.envファイルを読み込む
 
 const app = express();
@@ -715,12 +724,12 @@ client.on(Events.MessageCreate, async (message) => {
     const args = message.content.slice(1).trim().split(/ +/);
     const command = args.shift().toLowerCase();
     
-    // 商品一覧表示
+    // 商品一覧表示 (ボタン付き)
     if (command === 'show') {
       const embed = new EmbedBuilder()
         .setTitle('🎁 利用可能な商品')
         .setColor(0x6562FA)
-        .setDescription('購入可能なアイテム一覧です。`!buy [ID] [数量]` で購入できます。')
+        .setDescription('購入可能なアイテム一覧です。アイテムの「購入」ボタンをクリックするか、`!buy [ID] [数量]` コマンドで購入できます。')
         .setTimestamp();
         
       items.forEach(item => {
@@ -730,7 +739,35 @@ client.on(Events.MessageCreate, async (message) => {
         });
       });
       
-      await message.reply({ embeds: [embed] });
+      // アクションボタン用の行を作成
+      const rows = [];
+      
+      // 5つごとにボタンをグループ化（1行に最大5つのボタンしか置けないため）
+      for (let i = 0; i < items.length; i += 5) {
+        const row = new ActionRowBuilder();
+        const itemsInRow = items.slice(i, i + 5);
+        
+        itemsInRow.forEach(item => {
+          // 在庫がある場合のみ購入ボタンを有効にする
+          const isDisabled = item.stock <= 0;
+          
+          row.addComponents(
+            new ButtonBuilder()
+              .setCustomId(`buy_${item.id}`)
+              .setLabel(`ID:${item.id} 購入`)
+              .setStyle(ButtonStyle.Primary)
+              .setDisabled(isDisabled)
+          );
+        });
+        
+        rows.push(row);
+      }
+      
+      // すべてのボタン行を追加してメッセージを送信
+      await message.reply({ 
+        embeds: [embed],
+        components: rows
+      });
     }
     
     // ヘルプ表示
