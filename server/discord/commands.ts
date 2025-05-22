@@ -151,7 +151,7 @@ async function handleShowCommand(message: Message, storage: IStorage) {
     // Create embed for the vending machine
     const embed = new EmbedBuilder()
       .setTitle('🎰 じはんき - 商品一覧')
-      .setDescription('以下の商品が販売中です。ボタンをクリックして購入できます。')
+      .setDescription('以下の商品が販売中です。ボタンをクリックして購入できます。購入後、DMにて商品内容が送信されます。')
       .setColor('#5865F2');
 
     // 商品がない場合
@@ -172,10 +172,14 @@ async function handleShowCommand(message: Message, storage: IStorage) {
       const stockStatus = item.stock > 0 
         ? `在庫: ${item.stock}`
         : '在庫切れ';
-        
+
+      // DMへのコンテンツがある場合はアイコンを表示
+      const hasContent = item.content || (item.contentOptions && item.contentOptions.length > 0);
+      const contentIcon = hasContent ? '📨 ' : '';
+      
       embed.addFields({
-        name: `#${item.id.toString().padStart(3, '0')} ${item.name}`,
-        value: `${item.description}\n価格: **${item.price} ${currencyName}** | ${stockStatus}`,
+        name: `${contentIcon}#${item.id.toString().padStart(3, '0')} ${item.name}`,
+        value: `${item.description}\n価格: **${item.price} ${currencyName}** | ${stockStatus}${hasContent ? '\n購入後DMで内容が届きます！' : ''}`,
         inline: false
       });
       
@@ -202,7 +206,18 @@ async function handleShowCommand(message: Message, storage: IStorage) {
         .setLabel('詳細')
         .setStyle(ButtonStyle.Secondary);
       
-      row.addComponents(buyButton, addToCartButton, detailsButton);
+      // コンテンツ選択肢がある場合は選択ボタンを追加
+      if (item.contentOptions && item.contentOptions.length > 0) {
+        const previewButton = new ButtonBuilder()
+          .setCustomId(`preview_${item.id}`)
+          .setLabel('選択肢を見る')
+          .setStyle(ButtonStyle.Secondary);
+        
+        row.addComponents(buyButton, addToCartButton, detailsButton, previewButton);
+      } else {
+        row.addComponents(buyButton, addToCartButton, detailsButton);
+      }
+      
       components.push(row);
     }
     
@@ -232,7 +247,7 @@ async function handleShowCommand(message: Message, storage: IStorage) {
     // フッターに残高を表示
     if (discordUser) {
       embed.setFooter({ 
-        text: `残高: ${discordUser.balance} ${currencyName}` 
+        text: `残高: ${discordUser.balance} ${currencyName} | 購入するとDMで内容が届きます` 
       });
     }
     
@@ -361,12 +376,56 @@ async function handleShowCommand(message: Message, storage: IStorage) {
             try {
               // クライアントからユーザーを取得して、DMを送信
               const user = await client.users.fetch(interaction.user.id);
-              await user.send(`🎁 商品の詳細情報: ${updatedItem.name}\n\n${updatedItem.content}`);
+              await user.createDM().then(dm => 
+                dm.send(`🎁 商品の詳細情報: ${updatedItem.name}\n\n${updatedItem.content}`)
+              );
               
               console.log(`DMが正常に送信されました: ${interaction.user.username}`);
             } catch (dmError) {
               console.error('Error sending DM:', dmError);
               // DMが送れない場合は通知
+              await interaction.followUp({
+                content: `DM送信に失敗しました。プライバシー設定を確認してください。`,
+                flags: MessageFlags.Ephemeral
+              });
+            }
+          }
+          
+          // 選択肢がある場合、選択用のメッセージをDMで送信
+          if (updatedItem.contentOptions && updatedItem.contentOptions.length > 0) {
+            try {
+              const user = await client.users.fetch(interaction.user.id);
+              const dm = await user.createDM();
+              
+              // 選択肢表示用のEmbedを作成
+              const optionEmbed = new EmbedBuilder()
+                .setTitle(`🎮 ${updatedItem.name} - コンテンツ選択`)
+                .setDescription('以下から受け取りたいコンテンツを選択してください：')
+                .setColor('#5865F2');
+              
+              // 選択メニューの作成
+              const selectMenu = new StringSelectMenuBuilder()
+                .setCustomId(`content_select_${updatedItem.id}_${discordUser.id}`)
+                .setPlaceholder('コンテンツを選択...')
+                .addOptions(
+                  updatedItem.contentOptions.map((option, index) => ({
+                    label: `選択肢 ${index + 1}`,
+                    description: option.length > 100 ? option.substring(0, 97) + '...' : option,
+                    value: index.toString()
+                  }))
+                );
+              
+              const row = new ActionRowBuilder<StringSelectMenuBuilder>()
+                .addComponents(selectMenu);
+              
+              await dm.send({
+                embeds: [optionEmbed],
+                components: [row]
+              });
+              
+              console.log(`コンテンツ選択メニューを送信: ${interaction.user.username}`);
+            } catch (dmError) {
+              console.error('Error sending DM for content selection:', dmError);
               await interaction.followUp({
                 content: `DM送信に失敗しました。プライバシー設定を確認してください。`,
                 flags: MessageFlags.Ephemeral
@@ -482,6 +541,64 @@ async function handleShowCommand(message: Message, storage: IStorage) {
         // 購入キャンセル
         await interaction.update({
           content: '購入をキャンセルしました。',
+          components: []
+        });
+      }
+      else if (customId.startsWith('preview_')) {
+        // 選択肢の表示処理
+        const [_, itemId] = customId.split('_').map(Number);
+        
+        // 商品情報を取得
+        const item = await storage.getItem(itemId);
+        
+        if (!item || !item.contentOptions || item.contentOptions.length === 0) {
+          return await interaction.reply({
+            content: '商品の選択肢情報が見つかりません。',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+        
+        // 選択肢を表示するEmbedを作成
+        const embed = new EmbedBuilder()
+          .setTitle(`📋 ${item.name} - 選択肢一覧`)
+          .setDescription('購入後、以下の選択肢からDMで受け取るコンテンツを選べます。')
+          .setColor('#5865F2');
+        
+        // 選択肢を表示
+        item.contentOptions.forEach((option, index) => {
+          embed.addFields({
+            name: `選択肢 ${index + 1}`,
+            value: option.length > 100 ? option.substring(0, 97) + '...' : option,
+            inline: false
+          });
+        });
+        
+        // 購入ボタンを準備
+        const buyButton = new ButtonBuilder()
+          .setCustomId(`buy_${item.id}_1`)
+          .setLabel(`購入する (${item.price} ${currencyName})`)
+          .setStyle(ButtonStyle.Success)
+          .setDisabled(item.stock <= 0 || balance < item.price);
+        
+        const backButton = new ButtonBuilder()
+          .setCustomId('back_to_show')
+          .setLabel('戻る')
+          .setStyle(ButtonStyle.Secondary);
+        
+        const row = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(buyButton, backButton);
+        
+        await interaction.reply({
+          embeds: [embed],
+          components: [row],
+          flags: MessageFlags.Ephemeral
+        });
+      }
+      else if (customId === 'back_to_show') {
+        // 商品一覧に戻る
+        await interaction.update({
+          content: '商品一覧に戻ります',
+          embeds: [],
           components: []
         });
       }
