@@ -3,20 +3,40 @@
 # Render用のビルドスクリプト
 echo "開始: Renderのビルドプロセス"
 
-# 必要なグローバルパッケージのインストール
-echo "グローバルパッケージのインストール"
-npm install -g vite esbuild
-
 # 依存関係のインストール
 echo "依存関係のインストール"
 npm ci
 
+# vite設定を一時的に修正
+echo "Vite設定を修正"
+cat <<EOT > vite.config.js
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "path";
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "client", "src"),
+      "@shared": path.resolve(__dirname, "shared"),
+      "@assets": path.resolve(__dirname, "attached_assets"),
+    },
+  },
+  root: path.resolve(__dirname, "client"),
+  build: {
+    outDir: path.resolve(__dirname, "dist/public"),
+    emptyOutDir: true,
+  },
+});
+EOT
+
 # フロントエンドのビルド
 echo "Viteでフロントエンドをビルド"
-cd client && ../node_modules/.bin/vite build && cd ..
+npx vite build --config vite.config.js
 
 # バックエンドのビルド
 echo "esbuildでバックエンドをビルド"
-./node_modules/.bin/esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
 
 echo "ビルド完了"
