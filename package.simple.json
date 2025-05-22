@@ -1,0 +1,12 @@
+{
+  "name": "discord-vending-bot-api",
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "start": "node render-app.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

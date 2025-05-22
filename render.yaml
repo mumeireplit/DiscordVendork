@@ -2,7 +2,7 @@ services:
   - type: web
     name: discord-vending-bot
     env: node
-    buildCommand: ./render-build.sh
+    buildCommand: ./render-simple.sh
     startCommand: npm start
     envVars:
       - key: NODE_ENV

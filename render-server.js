@@ -1,23 +1,38 @@
 // Render専用のサーバーファイル
-// viteに依存せず、純粋なExpressサーバーとして動作します
+// 完全にスタンドアロンで動作するExpressサーバー
 
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import http from 'http';
-import { FirebaseStorage } from './server/firebase.js';
-import { storage as memStorage } from './server/storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// 環境変数でFirebaseを使うかどうかを指定できる
-const useFirebase = process.env.USE_FIREBASE === "true";
+// シンプルなメモリ内ストレージ（Render用）
+const storage = {
+  // サンプルアイテム
+  items: [
+    { id: 1, name: "プレミアムロール", description: "サーバー内で特別な役割を付与します", price: 1000, stock: 50 },
+    { id: 2, name: "カスタム絵文字", description: "あなただけのカスタム絵文字を追加します", price: 500, stock: 100 },
+    { id: 3, name: "プライベートチャネル", description: "特別なプライベートチャネルへのアクセス", price: 2000, stock: 5 }
+  ],
 
-// 使用するストレージを選択
-const storage = useFirebase ? new FirebaseStorage() : memStorage;
+  // APIメソッド
+  getItems: async function() {
+    return this.items;
+  },
+  
+  getTransactions: async function() {
+    return [];
+  },
+  
+  getDiscordUsers: async function() {
+    return [];
+  }
+};
 
 // ロギング関数
 function log(message, source = "express") {
