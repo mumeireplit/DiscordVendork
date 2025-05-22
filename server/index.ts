@@ -2,6 +2,10 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { FirebaseStorage } from "./firebase";
 import { storage as memStorage } from "./storage";
+import dotenv from 'dotenv';
+
+// .envファイルを読み込む
+dotenv.config();
 
 // viteをインポート
 import { setupVite, serveStatic, log } from "./vite";

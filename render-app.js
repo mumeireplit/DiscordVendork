@@ -3,6 +3,7 @@
 
 import express from 'express';
 import { Client, Events, GatewayIntentBits, EmbedBuilder } from 'discord.js';
+import 'dotenv/config'; // dotenvをインポートして.envファイルを読み込む
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -457,12 +458,24 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 // Discordボットのトークンが設定されている場合、ボットをログイン
-if (process.env.DISCORD_BOT_TOKEN) {
-  client.login(process.env.DISCORD_BOT_TOKEN)
-    .then(() => console.log('Discordボットがログインしました'))
-    .catch(err => console.error('Discordボットのログインに失敗しました:', err));
+const token = process.env.DISCORD_BOT_TOKEN;
+console.log('環境変数の確認: DISCORD_BOT_TOKEN ' + (token ? '設定済み' : '未設定'));
+
+if (token) {
+  try {
+    console.log('Discordボットのログイン処理を開始します...');
+    client.login(token)
+      .then(() => console.log('Discordボットが正常にログインしました'))
+      .catch(err => {
+        console.error('Discordボットのログインに失敗しました:', err);
+        console.error('トークンが正しいか確認してください');
+      });
+  } catch (error) {
+    console.error('ボットログイン処理中に例外が発生しました:', error);
+  }
 } else {
   console.warn('DISCORD_BOT_TOKEN が設定されていません。Discordボット機能は無効です。');
+  console.warn('Renderダッシュボードで環境変数を設定してください。');
 }
 
 // サーバー起動
