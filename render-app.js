@@ -1,10 +1,20 @@
 // Renderで動作する超シンプルなExpressサーバー
-// 依存関係最小でAPI機能のみ実装 - 拡張版
+// API機能 + Discordボット機能
 
 import express from 'express';
+import { Client, Events, GatewayIntentBits, EmbedBuilder } from 'discord.js';
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+
+// Discordクライアントの設定
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
 
 // シンプルなデータストア
 let items = [
@@ -349,6 +359,111 @@ app.use((err, _req, res, _next) => {
   console.error(`エラー: ${err.message}`);
   res.status(500).json({ error: 'サーバーエラーが発生しました' });
 });
+
+// Discordボットの機能実装
+client.once(Events.ClientReady, (c) => {
+  console.log(`Discord Bot準備完了！ログイン: ${c.user.tag}`);
+});
+
+// メッセージ処理
+client.on(Events.MessageCreate, async (message) => {
+  // ボット自身のメッセージには反応しない
+  if (message.author.bot) return;
+  
+  // コマンド処理
+  if (message.content.startsWith('!')) {
+    const args = message.content.slice(1).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
+    
+    // 商品一覧表示
+    if (command === 'show') {
+      const embed = new EmbedBuilder()
+        .setTitle('🎁 利用可能な商品')
+        .setColor(0x6562FA)
+        .setDescription('購入可能なアイテム一覧です。`!buy [ID] [数量]` で購入できます。')
+        .setTimestamp();
+        
+      items.forEach(item => {
+        embed.addFields({
+          name: `${item.name} (ID: ${item.id})`,
+          value: `${item.description}\n**価格**: ${item.price}コイン | **在庫**: ${item.stock}個`
+        });
+      });
+      
+      await message.reply({ embeds: [embed] });
+    }
+    
+    // ヘルプ表示
+    else if (command === 'help') {
+      const embed = new EmbedBuilder()
+        .setTitle('📜 コマンド一覧')
+        .setColor(0x6562FA)
+        .setDescription('以下のコマンドが使用できます：')
+        .addFields(
+          { name: '!show', value: '商品一覧を表示します' },
+          { name: '!buy [ID] [数量]', value: '商品を購入します' },
+          { name: '!cart', value: 'カート内容を表示します' },
+          { name: '!checkout', value: 'カート内の商品を購入します' },
+          { name: '!balance', value: '現在の残高を確認します' }
+        )
+        .setFooter({ text: 'Discord Vending Bot' });
+        
+      await message.reply({ embeds: [embed] });
+    }
+    
+    // 簡易購入処理
+    else if (command === 'buy') {
+      const itemId = parseInt(args[0]);
+      const quantity = parseInt(args[1] || '1');
+      
+      if (isNaN(itemId)) {
+        return message.reply('商品IDを指定してください。例: `!buy 1`');
+      }
+      
+      const item = items.find(i => i.id === itemId);
+      if (!item) {
+        return message.reply(`ID: ${itemId} の商品は見つかりませんでした。`);
+      }
+      
+      if (item.stock < quantity) {
+        return message.reply(`在庫が不足しています。現在の在庫: ${item.stock}個`);
+      }
+      
+      // 購入処理（シンプル版）
+      item.stock -= quantity;
+      
+      // 購入記録
+      transactions.push({
+        id: transactions.length + 1,
+        userId: message.author.id,
+        itemId: item.id,
+        quantity,
+        amount: item.price * quantity,
+        createdAt: new Date().toISOString()
+      });
+      
+      const embed = new EmbedBuilder()
+        .setTitle('✅ 購入完了')
+        .setColor(0x49cc90)
+        .setDescription(`${item.name} を ${quantity}個 購入しました。`)
+        .addFields(
+          { name: '合計金額', value: `${item.price * quantity}コイン` },
+          { name: '残り在庫', value: `${item.stock}個` }
+        );
+        
+      await message.reply({ embeds: [embed] });
+    }
+  }
+});
+
+// Discordボットのトークンが設定されている場合、ボットをログイン
+if (process.env.DISCORD_BOT_TOKEN) {
+  client.login(process.env.DISCORD_BOT_TOKEN)
+    .then(() => console.log('Discordボットがログインしました'))
+    .catch(err => console.error('Discordボットのログインに失敗しました:', err));
+} else {
+  console.warn('DISCORD_BOT_TOKEN が設定されていません。Discordボット機能は無効です。');
+}
 
 // サーバー起動
 app.listen(PORT, () => {

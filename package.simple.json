@@ -7,6 +7,7 @@
     "start": "node render-app.js"
   },
   "dependencies": {
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "discord.js": "^14.19.3"
   }
 }
