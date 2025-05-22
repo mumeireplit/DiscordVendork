@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Collection, Events, Message, MessageFlags } from 'discord.js';
+import { Client, GatewayIntentBits, Collection, Events, Message, MessageFlags, Partials } from 'discord.js';
 import { registerCommands, handleCommand } from './commands';
 import { storage } from '../index'; // インポート元をindex.tsに変更
 

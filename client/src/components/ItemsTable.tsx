@@ -53,6 +53,7 @@ export default function ItemsTable({ items, isLoading }: ItemsTableProps) {
   const [addItemDialogOpen, setAddItemDialogOpen] = useState(false);
   const [editItemDialogOpen, setEditItemDialogOpen] = useState(false);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [purchaseDiscordId, setPurchaseDiscordId] = useState('');
@@ -299,15 +300,18 @@ export default function ItemsTable({ items, isLoading }: ItemsTableProps) {
                             >
                               <ShoppingCart className="h-4 w-4" />
                             </Button>
-                            {item.contentOptions && item.contentOptions.length > 0 && (
+                            {(item.content || (item.contentOptions && item.contentOptions.length > 0)) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleShowContentOptions(item)}
+                                onClick={() => {
+                                  setSelectedItem(item);
+                                  setPreviewDialogOpen(true);
+                                }}
                                 className="text-blue-600"
-                                title="選択肢を見る"
+                                title="内容をプレビュー"
                               >
-                                <span className="text-xs font-bold">?</span>
+                                <span className="text-xs font-bold">👁️</span>
                               </Button>
                             )}
                             <Button 
