@@ -666,7 +666,51 @@ client.on(Events.MessageCreate, async (message) => {
   // ボット自身のメッセージには反応しない
   if (message.author.bot) return;
   
-  // コマンド処理
+  // スラッシュコマンドの処理
+  if (message.content.startsWith('/')) {
+    const args = message.content.slice(1).trim().split(/ +/);
+    const command = args.shift()?.toLowerCase();
+    
+    if (!command) return;
+    
+    // /help コマンド
+    if (command === 'help') {
+      const embed = new EmbedBuilder()
+        .setTitle('📜 コマンド一覧')
+        .setColor(0x6562FA)
+        .setDescription('以下のコマンドが使用できます：')
+        .addFields(
+          { name: '/help または !help', value: 'このヘルプを表示します' },
+          { name: '/show または !show', value: '商品一覧を表示します' },
+          { name: '/buy [ID] [数量] または !buy [ID] [数量]', value: '商品を購入します' }
+        )
+        .setFooter({ text: 'Discord Vending Bot' });
+      
+      // 管理者コマンドも表示
+      if (message.member?.permissions.has('Administrator')) {
+        embed.addFields(
+          { name: '管理者コマンド', value: '以下は管理者のみ使用できるコマンドです：' },
+          { name: '/setprice [ID] [価格] または !setprice [ID] [価格]', value: '商品の価格を変更します' },
+          { name: '/setstock [ID] [数量] または !setstock [ID] [数量]', value: '商品の在庫を変更します' },
+          { name: '/additem [名前] [価格] [在庫] [説明] または !additem ...', value: '新しい商品を追加します' },
+          { name: '/deleteitem [ID] または !deleteitem [ID]', value: '商品を削除します' },
+          { name: '/setdesc [ID] [説明] または !setdesc [ID] [説明]', value: '商品の説明を変更します' },
+          { name: '/setmessage [タイプ] [メッセージ] または !setmessage ...', value: 'DMメッセージを変更します（タイプ: success, failure, lowstock）' },
+          { name: '/backup または !backup', value: '現在のデータをバックアップします（DMに送信）' }
+        );
+      }
+      
+      await message.reply({ embeds: [embed] });
+      return;
+    }
+    
+    // その他のスラッシュコマンドは!コマンドと同じロジックで処理する
+    // コマンド名をそのまま渡して処理させる
+    await handleCommand(message, command, args, storage);
+    return;
+  }
+  
+  // !で始まるコマンド処理
   if (message.content.startsWith('!')) {
     const args = message.content.slice(1).trim().split(/ +/);
     const command = args.shift().toLowerCase();
