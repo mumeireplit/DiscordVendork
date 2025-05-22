@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Render用のビルドスクリプト（革新的アプローチ）
-echo "開始: Renderのビルドプロセス（viteを使わない方法）"
+# Render用のビルドスクリプト（シンプルなアプローチ）
+echo "開始: Renderのビルドプロセス（単独サーバーを使用）"
 
 # 依存関係のインストール
 echo "依存関係のインストール"
 npm ci
 
-# バックエンドのみをビルド
-echo "esbuildでサーバーをビルド"
-npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+# サーバーコードをコピー
+echo "Render専用サーバーを準備"
+cp render-server.js dist-server.js
 
 # 静的ファイルのディレクトリを作成
 mkdir -p dist/public
@@ -28,12 +28,17 @@ cat > dist/public/index.html << 'EOF'
     <div id="root">
       <h1>Discord Vending Bot</h1>
       <p>APIサーバーは正常に動作しています。</p>
+      <p>このサーバーはDiscord Botとして機能します。</p>
     </div>
   </body>
 </html>
 EOF
 
-# package.jsonのスタートスクリプトを修正
+# Render用のpackage.jsonを使用
+echo "Render用package.jsonを適用"
+cp package.render.json package.json
+
+# 環境設定の修正
 echo "環境設定の修正"
 cat > .env.production << 'EOF'
 NODE_ENV=production
