@@ -21,14 +21,18 @@ let users = [];
 // 基本設定
 app.use(express.json());
 
-// CORSミドルウェア
+// CORSミドルウェア - より寛容な設定
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // プリフライトリクエストへの応答
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+    return res.status(200).end();
   }
+  
   next();
 });
 
@@ -241,8 +245,20 @@ app.get('/', (_req, res) => {
           <span class="method get">GET</span> <a href="/api/stats">/api/stats</a> - 統計情報を取得
         </div>
         
+        <div class="endpoint">
+          <span class="method get">GET</span> <a href="/api/debug">/api/debug</a> - デバッグ情報を表示
+        </div>
+        
         <h2>商品一覧サンプル:</h2>
         <pre>${JSON.stringify(items, null, 2)}</pre>
+        
+        <h2>テスト用リンク (ブラウザから直接変更可能):</h2>
+        <ul>
+          <li><a href="/api/test/price/1/1200">商品ID:1の価格を1200に変更</a></li>
+          <li><a href="/api/test/price/2/600">商品ID:2の価格を600に変更</a></li>
+          <li><a href="/api/test/stock/1/60">商品ID:1の在庫を60に変更</a></li>
+          <li><a href="/api/test/stock/2/120">商品ID:2の在庫を120に変更</a></li>
+        </ul>
         
         <h2>使用例 (curl):</h2>
         <pre>
@@ -267,6 +283,65 @@ curl -X POST https://discordvendorbot.onrender.com/api/purchase \\
       </body>
     </html>
   `);
+});
+
+// デバッグエンドポイント
+app.get('/api/debug', (_req, res) => {
+  res.json({
+    items: items.length,
+    transactions: transactions.length,
+    users: users.length,
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// テスト用の価格変更エンドポイント (GETでアクセス可能）
+app.get('/api/test/price/:id/:price', (req, res) => {
+  const itemId = parseInt(req.params.id);
+  const price = parseInt(req.params.price);
+  
+  if (isNaN(price)) {
+    return res.status(400).json({ error: '有効な価格を指定してください' });
+  }
+  
+  const itemIndex = items.findIndex(i => i.id === itemId);
+  if (itemIndex === -1) {
+    return res.status(404).json({ error: '商品が見つかりません' });
+  }
+  
+  const oldPrice = items[itemIndex].price;
+  items[itemIndex].price = price;
+  
+  res.json({
+    success: true,
+    message: `商品ID:${itemId}の価格を${oldPrice}から${price}に変更しました`,
+    item: items[itemIndex]
+  });
+});
+
+// テスト用の在庫変更エンドポイント (GETでアクセス可能）
+app.get('/api/test/stock/:id/:stock', (req, res) => {
+  const itemId = parseInt(req.params.id);
+  const stock = parseInt(req.params.stock);
+  
+  if (isNaN(stock)) {
+    return res.status(400).json({ error: '有効な在庫数を指定してください' });
+  }
+  
+  const itemIndex = items.findIndex(i => i.id === itemId);
+  if (itemIndex === -1) {
+    return res.status(404).json({ error: '商品が見つかりません' });
+  }
+  
+  const oldStock = items[itemIndex].stock;
+  items[itemIndex].stock = stock;
+  
+  res.json({
+    success: true,
+    message: `商品ID:${itemId}の在庫を${oldStock}から${stock}に変更しました`,
+    item: items[itemIndex]
+  });
 });
 
 // エラーハンドリング
