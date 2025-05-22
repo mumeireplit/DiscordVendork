@@ -12,7 +12,15 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
+  // 開発環境と本番環境（Render）で異なるベースURLを使用
+  const baseUrl = import.meta.env.MODE === 'production' && !url.startsWith('http') 
+    ? window.location.origin 
+    : '';
+  
+  const fullUrl = `${baseUrl}${url}`;
+  console.log(`API request to: ${fullUrl}`);
+  
+  const res = await fetch(fullUrl, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
@@ -29,7 +37,16 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey[0] as string, {
+    // 開発環境と本番環境（Render）で異なるベースURLを使用
+    const url = queryKey[0] as string;
+    const baseUrl = import.meta.env.MODE === 'production' && !url.startsWith('http') 
+      ? window.location.origin 
+      : '';
+    
+    const fullUrl = `${baseUrl}${url}`;
+    console.log(`Query request to: ${fullUrl}`);
+    
+    const res = await fetch(fullUrl, {
       credentials: "include",
     });
 
