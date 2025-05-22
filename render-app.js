@@ -186,15 +186,149 @@ app.get('/api/stats', (_req, res) => {
   const totalSales = transactions.reduce((sum, tx) => sum + tx.quantity, 0);
   const totalRevenue = transactions.reduce((sum, tx) => sum + tx.amount, 0);
   
+  // 今日の売上
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todaysSales = transactions
+    .filter(tx => new Date(tx.createdAt) >= today)
+    .reduce((sum, tx) => sum + tx.amount, 0);
+    
+  // 過去7日間の売上
+  const lastWeek = new Date();
+  lastWeek.setDate(lastWeek.getDate() - 7);
+  lastWeek.setHours(0, 0, 0, 0);
+  const weekSales = transactions
+    .filter(tx => new Date(tx.createdAt) >= lastWeek)
+    .reduce((sum, tx) => sum + tx.amount, 0);
+  
+  const salesGrowth = transactions.length >= 2 ? 5 : 0; // サンプルの成長率
+  
   res.json({
     totalSales,
     totalRevenue,
     totalStock,
     lowStockItems,
     userCount: users.length,
-    newUsers: 0,
-    salesGrowth: 0
+    newUsers: users.length > 0 ? 1 : 0,
+    salesGrowth,
+    todaysSales,
+    weekSales,
+    botStatus: token ? 'online' : 'offline'
   });
+});
+
+// トランザクション履歴の取得
+app.get('/api/transactions', (_req, res) => {
+  res.json(transactions);
+});
+
+// ユーザー一覧の取得
+app.get('/api/users', (_req, res) => {
+  res.json(users);
+});
+
+// 設定情報の取得・更新API
+app.get('/api/settings', (_req, res) => {
+  res.json({
+    purchaseSuccessMessage,
+    purchaseFailureMessage,
+    lowStockNotificationMessage,
+    botStatus: token ? 'online' : 'offline'
+  });
+});
+
+app.post('/api/settings', (req, res) => {
+  const { purchaseSuccess, purchaseFailure, lowStockNotification } = req.body;
+  
+  if (purchaseSuccess) {
+    purchaseSuccessMessage = purchaseSuccess;
+  }
+  
+  if (purchaseFailure) {
+    purchaseFailureMessage = purchaseFailure;
+  }
+  
+  if (lowStockNotification) {
+    lowStockNotificationMessage = lowStockNotification;
+  }
+  
+  res.json({
+    success: true,
+    message: '設定が更新されました',
+    settings: {
+      purchaseSuccessMessage,
+      purchaseFailureMessage,
+      lowStockNotificationMessage,
+      botStatus: token ? 'online' : 'offline'
+    }
+  });
+});
+
+// データバックアップ取得API
+app.get('/api/backup', (_req, res) => {
+  const data = {
+    items,
+    transactions,
+    users,
+    settings: {
+      purchaseSuccessMessage,
+      purchaseFailureMessage,
+      lowStockNotificationMessage
+    },
+    timestamp: new Date().toISOString()
+  };
+  
+  res.json(data);
+});
+
+// データ復元API
+app.post('/api/restore', (req, res) => {
+  try {
+    const { items: newItems, transactions: newTransactions, users: newUsers, settings } = req.body;
+    
+    if (Array.isArray(newItems)) {
+      items = newItems;
+    }
+    
+    if (Array.isArray(newTransactions)) {
+      transactions = newTransactions;
+    }
+    
+    if (Array.isArray(newUsers)) {
+      users = newUsers;
+    }
+    
+    if (settings) {
+      if (settings.purchaseSuccessMessage) {
+        purchaseSuccessMessage = settings.purchaseSuccessMessage;
+      }
+      
+      if (settings.purchaseFailureMessage) {
+        purchaseFailureMessage = settings.purchaseFailureMessage;
+      }
+      
+      if (settings.lowStockNotificationMessage) {
+        lowStockNotificationMessage = settings.lowStockNotificationMessage;
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'データが復元されました',
+      count: {
+        items: items.length,
+        transactions: transactions.length,
+        users: users.length
+      }
+    });
+  } catch (error) {
+    console.error('データ復元エラー:', error);
+    res.status(400).json({
+      success: false,
+      message: 'データ復元に失敗しました',
+      error: error.message
+    });
+  }
 });
 
 // ルートパス
@@ -216,14 +350,23 @@ app.get('/', (_req, res) => {
           .post { background: #49cc90; color: white; }
           .patch { background: #fca130; color: white; }
           .delete { background: #f93e3e; color: white; }
+          .status { padding: 0.5rem; border-radius: 0.3rem; margin-top: 1rem; }
+          .online { background: #d4edda; color: #155724; }
+          .offline { background: #f8d7da; color: #721c24; }
         </style>
       </head>
       <body>
         <h1>Discord Vending Bot API</h1>
         <p>このサーバーはDiscord Botのバックエンドとして動作しています。</p>
         
+        <div class="status ${token ? 'online' : 'offline'}">
+          <strong>Bot状態:</strong> ${token ? 'オンライン' : 'オフライン'} 
+          ${!token ? '(環境変数 DISCORD_BOT_TOKEN が設定されていません)' : ''}
+        </div>
+        
         <h2>利用可能なAPIエンドポイント:</h2>
         
+        <h3>商品関連</h3>
         <div class="endpoint">
           <span class="method get">GET</span> <a href="/api/items">/api/items</a> - 商品一覧を取得
         </div>
@@ -248,12 +391,38 @@ app.get('/', (_req, res) => {
           <span class="method delete">DELETE</span> /api/items/:id - 商品を削除
         </div>
         
+        <h3>取引・統計関連</h3>
         <div class="endpoint">
           <span class="method post">POST</span> /api/purchase - 商品を購入
         </div>
         
         <div class="endpoint">
           <span class="method get">GET</span> <a href="/api/stats">/api/stats</a> - 統計情報を取得
+        </div>
+        
+        <div class="endpoint">
+          <span class="method get">GET</span> <a href="/api/transactions">/api/transactions</a> - 取引履歴を取得
+        </div>
+        
+        <div class="endpoint">
+          <span class="method get">GET</span> <a href="/api/users">/api/users</a> - ユーザー一覧を取得
+        </div>
+        
+        <h3>設定・データ管理</h3>
+        <div class="endpoint">
+          <span class="method get">GET</span> <a href="/api/settings">/api/settings</a> - 現在の設定を取得
+        </div>
+        
+        <div class="endpoint">
+          <span class="method post">POST</span> /api/settings - 設定を更新
+        </div>
+        
+        <div class="endpoint">
+          <span class="method get">GET</span> <a href="/api/backup">/api/backup</a> - データバックアップを取得
+        </div>
+        
+        <div class="endpoint">
+          <span class="method post">POST</span> /api/restore - データを復元
         </div>
         
         <div class="endpoint">
@@ -269,6 +438,24 @@ app.get('/', (_req, res) => {
           <li><a href="/api/test/price/2/600">商品ID:2の価格を600に変更</a></li>
           <li><a href="/api/test/stock/1/60">商品ID:1の在庫を60に変更</a></li>
           <li><a href="/api/test/stock/2/120">商品ID:2の在庫を120に変更</a></li>
+        </ul>
+        
+        <h2>Discord Bot コマンド:</h2>
+        <ul>
+          <li><strong>!show</strong> - 商品一覧を表示</li>
+          <li><strong>!buy [ID] [数量]</strong> - 商品を購入</li>
+          <li><strong>!help</strong> - コマンド一覧を表示</li>
+        </ul>
+        
+        <h3>管理者コマンド:</h3>
+        <ul>
+          <li><strong>!setprice [ID] [価格]</strong> - 商品の価格を変更</li>
+          <li><strong>!setstock [ID] [数量]</strong> - 商品の在庫を変更</li>
+          <li><strong>!additem [名前] [価格] [在庫] [説明]</strong> - 新しい商品を追加</li>
+          <li><strong>!deleteitem [ID]</strong> - 商品を削除</li>
+          <li><strong>!setdesc [ID] [説明]</strong> - 商品の説明を変更</li>
+          <li><strong>!setmessage [タイプ] [メッセージ]</strong> - DMメッセージを設定</li>
+          <li><strong>!backup</strong> - データバックアップをDMに送信</li>
         </ul>
         
         <h2>使用例 (curl):</h2>
@@ -290,6 +477,11 @@ curl -X PATCH https://discordvendorbot.onrender.com/api/items/2/price \\
 curl -X POST https://discordvendorbot.onrender.com/api/purchase \\
   -H "Content-Type: application/json" \\
   -d '{"userId": "123456", "itemId": 1, "quantity": 2}'
+
+# 設定を更新
+curl -X POST https://discordvendorbot.onrender.com/api/settings \\
+  -H "Content-Type: application/json" \\
+  -d '{"purchaseSuccess": "カスタム購入完了メッセージ", "lowStockNotification": "カスタム在庫不足メッセージ"}'
 </pre>
       </body>
     </html>
@@ -303,6 +495,12 @@ app.get('/api/debug', (_req, res) => {
     transactions: transactions.length,
     users: users.length,
     environment: process.env.NODE_ENV,
+    botStatus: token ? 'online' : 'offline',
+    settings: {
+      purchaseSuccessMessage,
+      purchaseFailureMessage,
+      lowStockNotificationMessage
+    },
     timestamp: new Date().toISOString()
   });
 });
