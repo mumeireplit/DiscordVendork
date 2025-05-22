@@ -29,6 +29,27 @@
       color: #333;
     }
     
+    .mt-4 {
+      margin-top: 1.5rem;
+    }
+    
+    code {
+      background-color: #f8f9fa;
+      padding: 0.2rem 0.4rem;
+      border-radius: 0.25rem;
+      font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.875em;
+    }
+    
+    .template-content {
+      display: none;
+      padding-top: 1rem;
+    }
+    
+    .template-content.active {
+      display: block;
+    }
+    
     .container {
       max-width: 1140px;
       margin: 0 auto;
@@ -363,7 +384,7 @@
     <!-- 設定 -->
     <div id="settings" class="tab-content">
       <div class="card">
-        <div class="card-header">メッセージ設定</div>
+        <div class="card-header">一般メッセージ設定</div>
         <div class="card-body">
           <form id="settings-form">
             <div class="form-group">
@@ -380,6 +401,107 @@
             </div>
             <button type="submit" class="btn btn-primary">設定を保存</button>
           </form>
+        </div>
+      </div>
+      
+      <!-- 商品テンプレート設定 -->
+      <div class="card mt-4">
+        <div class="card-header">商品テンプレート設定</div>
+        <div class="card-body">
+          <ul class="nav-tabs">
+            <li><a href="#template-premium" class="template-tab active">プレミアムロール</a></li>
+            <li><a href="#template-emoji" class="template-tab">カスタム絵文字</a></li>
+            <li><a href="#template-channel" class="template-tab">プライベートチャネル</a></li>
+          </ul>
+          
+          <!-- プレミアムロールテンプレート -->
+          <div id="template-premium" class="template-content active">
+            <form id="premium-template-form">
+              <div class="form-group">
+                <label for="premium-title">タイトル</label>
+                <input type="text" id="premium-title" class="form-control">
+              </div>
+              <div class="form-group">
+                <label for="premium-description">説明</label>
+                <textarea id="premium-description" class="form-control" rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="premium-color">カラー (16進数コード)</label>
+                <input type="text" id="premium-color" class="form-control" placeholder="例: 6562FA">
+              </div>
+              <div class="form-group">
+                <label for="premium-footer">フッターテキスト</label>
+                <input type="text" id="premium-footer" class="form-control">
+              </div>
+              <button type="submit" class="btn btn-primary">テンプレートを保存</button>
+            </form>
+          </div>
+          
+          <!-- カスタム絵文字テンプレート -->
+          <div id="template-emoji" class="template-content">
+            <form id="emoji-template-form">
+              <div class="form-group">
+                <label for="emoji-title">タイトル</label>
+                <input type="text" id="emoji-title" class="form-control">
+              </div>
+              <div class="form-group">
+                <label for="emoji-description">説明</label>
+                <textarea id="emoji-description" class="form-control" rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="emoji-color">カラー (16進数コード)</label>
+                <input type="text" id="emoji-color" class="form-control" placeholder="例: 49cc90">
+              </div>
+              <div class="form-group">
+                <label for="emoji-footer">フッターテキスト</label>
+                <input type="text" id="emoji-footer" class="form-control">
+              </div>
+              <button type="submit" class="btn btn-primary">テンプレートを保存</button>
+            </form>
+          </div>
+          
+          <!-- プライベートチャネルテンプレート -->
+          <div id="template-channel" class="template-content">
+            <form id="channel-template-form">
+              <div class="form-group">
+                <label for="channel-title">タイトル</label>
+                <input type="text" id="channel-title" class="form-control">
+              </div>
+              <div class="form-group">
+                <label for="channel-description">説明</label>
+                <textarea id="channel-description" class="form-control" rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="channel-color">カラー (16進数コード)</label>
+                <input type="text" id="channel-color" class="form-control" placeholder="例: ff9966">
+              </div>
+              <div class="form-group">
+                <label for="channel-footer">フッターテキスト</label>
+                <input type="text" id="channel-footer" class="form-control">
+              </div>
+              <button type="submit" class="btn btn-primary">テンプレートを保存</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card mt-4">
+        <div class="card-header">Discordコマンド設定</div>
+        <div class="card-body">
+          <p>以下のDiscordコマンドを使用して、ボットの設定を直接変更できます：</p>
+          <ul>
+            <li><code>!setmessage success [メッセージ]</code> - 購入成功時のメッセージを設定</li>
+            <li><code>!setmessage failure [メッセージ]</code> - 購入失敗時のメッセージを設定</li>
+            <li><code>!setmessage lowstock [メッセージ]</code> - 在庫不足時のメッセージを設定</li>
+          </ul>
+          <p>商品管理コマンド：</p>
+          <ul>
+            <li><code>!additem [商品名] [価格] [在庫] [説明]</code> - 新しい商品を追加</li>
+            <li><code>!setprice [ID] [価格]</code> - 商品の価格を変更</li>
+            <li><code>!setstock [ID] [在庫]</code> - 商品の在庫を変更</li>
+            <li><code>!setdesc [ID] [説明]</code> - 商品の説明を変更</li>
+            <li><code>!deleteitem [ID]</code> - 商品を削除</li>
+          </ul>
         </div>
       </div>
     </div>

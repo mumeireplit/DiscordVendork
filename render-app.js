@@ -234,12 +234,18 @@ app.get('/api/settings', (_req, res) => {
     purchaseSuccessMessage,
     purchaseFailureMessage,
     lowStockNotificationMessage,
+    itemTemplates,
     botStatus: token ? 'online' : 'offline'
   });
 });
 
 app.post('/api/settings', (req, res) => {
-  const { purchaseSuccess, purchaseFailure, lowStockNotification } = req.body;
+  const { 
+    purchaseSuccess, 
+    purchaseFailure, 
+    lowStockNotification,
+    templates
+  } = req.body;
   
   if (purchaseSuccess) {
     purchaseSuccessMessage = purchaseSuccess;
@@ -253,6 +259,30 @@ app.post('/api/settings', (req, res) => {
     lowStockNotificationMessage = lowStockNotification;
   }
   
+  if (templates) {
+    // 個別のテンプレートを更新
+    if (templates.premium) {
+      itemTemplates.premium = {
+        ...itemTemplates.premium,
+        ...templates.premium
+      };
+    }
+    
+    if (templates.emoji) {
+      itemTemplates.emoji = {
+        ...itemTemplates.emoji,
+        ...templates.emoji
+      };
+    }
+    
+    if (templates.channel) {
+      itemTemplates.channel = {
+        ...itemTemplates.channel,
+        ...templates.channel
+      };
+    }
+  }
+  
   res.json({
     success: true,
     message: '設定が更新されました',
@@ -260,8 +290,42 @@ app.post('/api/settings', (req, res) => {
       purchaseSuccessMessage,
       purchaseFailureMessage,
       lowStockNotificationMessage,
+      itemTemplates,
       botStatus: token ? 'online' : 'offline'
     }
+  });
+});
+
+// 特定の商品テンプレートを取得
+app.get('/api/templates/:type', (req, res) => {
+  const templateType = req.params.type;
+  
+  if (!itemTemplates[templateType]) {
+    return res.status(404).json({ error: 'テンプレートが見つかりません' });
+  }
+  
+  res.json(itemTemplates[templateType]);
+});
+
+// 特定の商品テンプレートを更新
+app.post('/api/templates/:type', (req, res) => {
+  const templateType = req.params.type;
+  const updates = req.body;
+  
+  if (!itemTemplates[templateType]) {
+    return res.status(404).json({ error: 'テンプレートが見つかりません' });
+  }
+  
+  // テンプレートを更新
+  itemTemplates[templateType] = {
+    ...itemTemplates[templateType],
+    ...updates
+  };
+  
+  res.json({
+    success: true,
+    message: `${templateType}テンプレートが更新されました`,
+    template: itemTemplates[templateType]
   });
 });
 
@@ -575,6 +639,28 @@ let purchaseSuccessMessage = '購入ありがとうございます！商品が�
 let purchaseFailureMessage = '申し訳ありません、購入処理中にエラーが発生しました。';
 let lowStockNotificationMessage = '在庫が不足しています。管理者に連絡してください。';
 
+// 商品テンプレート (DM送信用)
+let itemTemplates = {
+  premium: {
+    title: 'プレミアムロール特典',
+    description: 'サーバー内で特別な役割を付与されました。特典をお楽しみください！',
+    color: 0x6562FA,
+    footer: 'Discord Vending Bot - Premium'
+  },
+  emoji: {
+    title: 'カスタム絵文字特典',
+    description: 'あなただけのカスタム絵文字が追加されました。チャットでお使いいただけます！',
+    color: 0x49cc90,
+    footer: 'Discord Vending Bot - Custom Emoji'
+  },
+  channel: {
+    title: 'プライベートチャネル特典',
+    description: '特別なプライベートチャネルへのアクセス権が付与されました。',
+    color: 0xff9966,
+    footer: 'Discord Vending Bot - Private Channel'
+  }
+};
+
 // メッセージ処理
 client.on(Events.MessageCreate, async (message) => {
   // ボット自身のメッセージには反応しない
@@ -678,11 +764,23 @@ client.on(Events.MessageCreate, async (message) => {
         
       await message.reply({ embeds: [embed] });
       
+      // 商品種別に応じたテンプレートを選択
+      let template = itemTemplates.premium; // デフォルト
+      
+      // 商品名に基づいて適切なテンプレートを選択
+      if (item.name.includes('プレミアム') || item.name.includes('ロール')) {
+        template = itemTemplates.premium;
+      } else if (item.name.includes('絵文字') || item.name.includes('emoji')) {
+        template = itemTemplates.emoji;
+      } else if (item.name.includes('チャネル') || item.name.includes('channel')) {
+        template = itemTemplates.channel;
+      }
+      
       // 購入確認のDMを送信
       try {
         const dmEmbed = new EmbedBuilder()
-          .setTitle('🛒 購入確認')
-          .setColor(0x49cc90)
+          .setTitle(template.title || '🛒 購入確認')
+          .setColor(template.color || 0x49cc90)
           .setDescription(purchaseSuccessMessage)
           .addFields(
             { name: '商品', value: item.name },
@@ -690,7 +788,8 @@ client.on(Events.MessageCreate, async (message) => {
             { name: '価格', value: `${item.price}コイン/個` },
             { name: '合計', value: `${transaction.amount}コイン` },
             { name: '購入日時', value: new Date().toLocaleString('ja-JP') }
-          );
+          )
+          .setFooter({ text: template.footer || 'Discord Vending Bot' });
           
         await message.author.send({ embeds: [dmEmbed] });
       } catch (error) {
