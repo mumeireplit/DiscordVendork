@@ -369,7 +369,9 @@ async function handleShowCommand(message: Message, storage: IStorage) {
             .setColor('#3BA55C')
             .setTimestamp();
           
-          await message.channel.send({ embeds: [publicEmbed] });
+          if (message.channel && typeof message.channel.send === 'function') {
+            await message.channel.send({ embeds: [publicEmbed] });
+          }
           
           // アイテムのコンテンツがある場合はDMで送信
           if (updatedItem.content) {

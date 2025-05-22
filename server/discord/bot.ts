@@ -14,6 +14,14 @@ export const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.DirectMessageReactions,
+  ],
+  partials: [
+    'CHANNEL', // Required to receive DMs
+    'MESSAGE',
+    'REACTION'
   ],
 }) as BotClient;
 
