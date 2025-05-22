@@ -1,8 +1,10 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
 import { FirebaseStorage } from "./firebase";
 import { storage as memStorage } from "./storage";
+
+// viteをインポート
+import { setupVite, serveStatic, log } from "./vite";
 
 // 環境変数でFirebaseを使うかどうかを指定できる
 const useFirebase = process.env.USE_FIREBASE === "true";
