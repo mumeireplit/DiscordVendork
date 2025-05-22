@@ -365,6 +365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
       });
       
+      console.log('購入リクエスト受信:', req.body);
       const { discordId, items } = purchaseSchema.parse(req.body);
       
       // Discordユーザーを取得または作成

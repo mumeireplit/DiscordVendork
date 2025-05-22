@@ -175,6 +175,12 @@ export default function ItemsTable({ items, isLoading }: ItemsTableProps) {
     if (!purchaseDiscordId || cartItems.length === 0) return;
     
     try {
+      // ローディング状態を表示
+      toast({
+        title: "処理中",
+        description: "購入処理を実行しています...",
+      });
+      
       // Get the Discord user or create a new one
       const response = await apiRequest('POST', '/api/purchase', {
         discordId: purchaseDiscordId,
@@ -184,9 +190,15 @@ export default function ItemsTable({ items, isLoading }: ItemsTableProps) {
         }))
       });
       
+      // 購入後のメッセージ表示
+      const hasDmContent = cartItems.some(cartItem => {
+        const item = items.find(i => i.id === cartItem.itemId);
+        return item && (item.content || (item.contentOptions && item.contentOptions.length > 0));
+      });
+      
       toast({
         title: "購入完了",
-        description: `${cartItems.length}種類の商品を購入しました。`,
+        description: `${cartItems.length}種類の商品を購入しました。${hasDmContent ? 'DMで詳細が送信されます。' : ''}`,
       });
       
       // Clear cart after successful purchase
@@ -457,6 +469,73 @@ export default function ItemsTable({ items, isLoading }: ItemsTableProps) {
               className="bg-green-600 hover:bg-green-700"
             >
               購入を確定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* コンテンツプレビューダイアログ */}
+      <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>コンテンツプレビュー</DialogTitle>
+            <DialogDescription>
+              購入後にDMで送信される内容のプレビューです。
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {selectedItem && (
+              <div className="rounded-md border p-4 bg-gray-50 dark:bg-gray-900">
+                <h3 className="font-medium mb-2">📨 送信内容：</h3>
+                {selectedItem.content && (
+                  <div className="whitespace-pre-wrap text-sm mb-4 p-3 border rounded bg-white dark:bg-gray-800">
+                    {selectedItem.content}
+                  </div>
+                )}
+                
+                {selectedItem.contentOptions && selectedItem.contentOptions.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="text-sm font-medium mb-2">選択可能なコンテンツ：</h4>
+                    <div className="space-y-2">
+                      {selectedItem.contentOptions.map((option, index) => (
+                        <div key={index} className="p-3 border rounded text-sm bg-white dark:bg-gray-800">
+                          <div className="font-medium text-xs mb-1 text-blue-600">選択肢 {index + 1}</div>
+                          <div className="whitespace-pre-wrap">{option}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {!selectedItem.content && (!selectedItem.contentOptions || selectedItem.contentOptions.length === 0) && (
+                  <p className="text-sm text-muted-foreground">このアイテムにはDM送信コンテンツがありません。</p>
+                )}
+              </div>
+            )}
+            
+            <div className="text-sm text-muted-foreground">
+              <p>※実際の送信内容はここで表示されているものと若干異なる場合があります。</p>
+              <p>※Discordへの送信にはDiscord IDが必要です。</p>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewDialogOpen(false)}>
+              閉じる
+            </Button>
+            <Button 
+              onClick={() => {
+                setPreviewDialogOpen(false);
+                const item = items.find(i => i.id === selectedItem?.id);
+                if (item) {
+                  handleAddToCart(item);
+                }
+              }}
+              className="bg-green-600 hover:bg-green-700"
+              disabled={!selectedItem || selectedItem.stock <= 0}
+            >
+              カートに追加
             </Button>
           </DialogFooter>
         </DialogContent>
