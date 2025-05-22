@@ -31,6 +31,7 @@ let users = [];
 
 // 基本設定
 app.use(express.json());
+app.use(express.static('public'));
 
 // CORSミドルウェア - より寛容な設定
 app.use((req, res, next) => {
@@ -329,6 +330,11 @@ app.post('/api/restore', (req, res) => {
       error: error.message
     });
   }
+});
+
+// 管理画面
+app.get('/admin', (_req, res) => {
+  res.sendFile('admin.html', { root: 'public' });
 });
 
 // ルートパス
