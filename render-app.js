@@ -366,6 +366,11 @@ client.once(Events.ClientReady, (c) => {
   console.log(`Discord Bot準備完了！ログイン: ${c.user.tag}`);
 });
 
+// DMカスタムメッセージ用の設定
+let purchaseSuccessMessage = '購入ありがとうございます！商品が購入されました。';
+let purchaseFailureMessage = '申し訳ありません、購入処理中にエラーが発生しました。';
+let lowStockNotificationMessage = '在庫が不足しています。管理者に連絡してください。';
+
 // メッセージ処理
 client.on(Events.MessageCreate, async (message) => {
   // ボット自身のメッセージには反応しない
@@ -396,18 +401,31 @@ client.on(Events.MessageCreate, async (message) => {
     
     // ヘルプ表示
     else if (command === 'help') {
+      const isAdmin = message.member?.permissions.has('Administrator');
+      
       const embed = new EmbedBuilder()
         .setTitle('📜 コマンド一覧')
         .setColor(0x6562FA)
         .setDescription('以下のコマンドが使用できます：')
         .addFields(
           { name: '!show', value: '商品一覧を表示します' },
-          { name: '!buy [ID] [数量]', value: '商品を購入します' },
-          { name: '!cart', value: 'カート内容を表示します' },
-          { name: '!checkout', value: 'カート内の商品を購入します' },
-          { name: '!balance', value: '現在の残高を確認します' }
+          { name: '!buy [ID] [数量]', value: '商品を購入します' }
         )
         .setFooter({ text: 'Discord Vending Bot' });
+      
+      // 管理者向けヘルプを追加
+      if (isAdmin) {
+        embed.addFields(
+          { name: '管理者コマンド', value: '以下は管理者のみ使用できるコマンドです：' },
+          { name: '!setprice [ID] [価格]', value: '商品の価格を変更します' },
+          { name: '!setstock [ID] [数量]', value: '商品の在庫を変更します' },
+          { name: '!additem [名前] [価格] [在庫] [説明]', value: '新しい商品を追加します' },
+          { name: '!deleteitem [ID]', value: '商品を削除します' },
+          { name: '!setdesc [ID] [説明]', value: '商品の説明を変更します' },
+          { name: '!setmessage [タイプ] [メッセージ]', value: 'DMメッセージを変更します（タイプ: success, failure, lowstock）' },
+          { name: '!backup', value: '現在のデータをバックアップします（DMに送信）' }
+        );
+      }
         
       await message.reply({ embeds: [embed] });
     }
@@ -434,14 +452,16 @@ client.on(Events.MessageCreate, async (message) => {
       item.stock -= quantity;
       
       // 購入記録
-      transactions.push({
+      const transaction = {
         id: transactions.length + 1,
         userId: message.author.id,
         itemId: item.id,
         quantity,
         amount: item.price * quantity,
         createdAt: new Date().toISOString()
-      });
+      };
+      
+      transactions.push(transaction);
       
       const embed = new EmbedBuilder()
         .setTitle('✅ 購入完了')
@@ -453,6 +473,203 @@ client.on(Events.MessageCreate, async (message) => {
         );
         
       await message.reply({ embeds: [embed] });
+      
+      // 購入確認のDMを送信
+      try {
+        const dmEmbed = new EmbedBuilder()
+          .setTitle('🛒 購入確認')
+          .setColor(0x49cc90)
+          .setDescription(purchaseSuccessMessage)
+          .addFields(
+            { name: '商品', value: item.name },
+            { name: '数量', value: quantity.toString() },
+            { name: '価格', value: `${item.price}コイン/個` },
+            { name: '合計', value: `${transaction.amount}コイン` },
+            { name: '購入日時', value: new Date().toLocaleString('ja-JP') }
+          );
+          
+        await message.author.send({ embeds: [dmEmbed] });
+      } catch (error) {
+        console.error('DMの送信に失敗しました:', error);
+      }
+    }
+    
+    // 管理者コマンド: 価格変更
+    else if (command === 'setprice' && message.member?.permissions.has('Administrator')) {
+      const itemId = parseInt(args[0]);
+      const newPrice = parseInt(args[1]);
+      
+      if (isNaN(itemId) || isNaN(newPrice)) {
+        return message.reply('商品IDと新しい価格を指定してください。例: `!setprice 1 500`');
+      }
+      
+      const item = items.find(i => i.id === itemId);
+      if (!item) {
+        return message.reply(`ID: ${itemId} の商品は見つかりませんでした。`);
+      }
+      
+      const oldPrice = item.price;
+      item.price = newPrice;
+      
+      await message.reply(`商品「${item.name}」の価格を ${oldPrice} → ${newPrice} コインに変更しました。`);
+    }
+    
+    // 管理者コマンド: 在庫変更
+    else if (command === 'setstock' && message.member?.permissions.has('Administrator')) {
+      const itemId = parseInt(args[0]);
+      const newStock = parseInt(args[1]);
+      
+      if (isNaN(itemId) || isNaN(newStock)) {
+        return message.reply('商品IDと新しい在庫数を指定してください。例: `!setstock 1 100`');
+      }
+      
+      const item = items.find(i => i.id === itemId);
+      if (!item) {
+        return message.reply(`ID: ${itemId} の商品は見つかりませんでした。`);
+      }
+      
+      const oldStock = item.stock;
+      item.stock = newStock;
+      
+      await message.reply(`商品「${item.name}」の在庫を ${oldStock} → ${newStock} 個に変更しました。`);
+    }
+    
+    // 管理者コマンド: 商品追加
+    else if (command === 'additem' && message.member?.permissions.has('Administrator')) {
+      // !additem 商品名 価格 在庫数 説明
+      if (args.length < 4) {
+        return message.reply('商品名、価格、在庫数、説明を指定してください。例: `!additem プレミアムロール 1000 50 特別な役割を付与します`');
+      }
+      
+      const name = args[0];
+      const price = parseInt(args[1]);
+      const stock = parseInt(args[2]);
+      const description = args.slice(3).join(' ');
+      
+      if (isNaN(price) || isNaN(stock)) {
+        return message.reply('価格と在庫数は数値で指定してください。');
+      }
+      
+      const newId = items.length > 0 ? Math.max(...items.map(i => i.id)) + 1 : 1;
+      
+      const newItem = {
+        id: newId,
+        name,
+        description,
+        price,
+        stock
+      };
+      
+      items.push(newItem);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('✅ 商品追加完了')
+        .setColor(0x49cc90)
+        .setDescription(`新しい商品「${name}」を追加しました。`)
+        .addFields(
+          { name: 'ID', value: newId.toString() },
+          { name: '価格', value: `${price}コイン` },
+          { name: '在庫', value: `${stock}個` },
+          { name: '説明', value: description }
+        );
+        
+      await message.reply({ embeds: [embed] });
+    }
+    
+    // 管理者コマンド: DM設定変更
+    else if (command === 'setmessage' && message.member?.permissions.has('Administrator')) {
+      // !setmessage success/failure/lowstock メッセージ内容
+      if (args.length < 2) {
+        return message.reply('メッセージタイプとメッセージ内容を指定してください。例: `!setmessage success ご購入ありがとうございます！`');
+      }
+      
+      const messageType = args[0].toLowerCase();
+      const messageContent = args.slice(1).join(' ');
+      
+      if (messageType === 'success') {
+        purchaseSuccessMessage = messageContent;
+        await message.reply('購入成功時のメッセージを更新しました。');
+      } else if (messageType === 'failure') {
+        purchaseFailureMessage = messageContent;
+        await message.reply('購入失敗時のメッセージを更新しました。');
+      } else if (messageType === 'lowstock') {
+        lowStockNotificationMessage = messageContent;
+        await message.reply('在庫不足時のメッセージを更新しました。');
+      } else {
+        await message.reply('有効なメッセージタイプは success, failure, lowstock です。');
+      }
+    }
+    
+    // 管理者コマンド: 商品削除
+    else if (command === 'deleteitem' && message.member?.permissions.has('Administrator')) {
+      const itemId = parseInt(args[0]);
+      
+      if (isNaN(itemId)) {
+        return message.reply('削除する商品のIDを指定してください。例: `!deleteitem 1`');
+      }
+      
+      const itemIndex = items.findIndex(i => i.id === itemId);
+      if (itemIndex === -1) {
+        return message.reply(`ID: ${itemId} の商品は見つかりませんでした。`);
+      }
+      
+      const deletedItem = items[itemIndex];
+      items.splice(itemIndex, 1);
+      
+      await message.reply(`商品「${deletedItem.name}」を削除しました。`);
+    }
+    
+    // 管理者コマンド: 商品説明変更
+    else if (command === 'setdesc' && message.member?.permissions.has('Administrator')) {
+      // !setdesc 1 新しい説明文
+      if (args.length < 2) {
+        return message.reply('商品IDと新しい説明文を指定してください。例: `!setdesc 1 新しい商品の説明文`');
+      }
+      
+      const itemId = parseInt(args[0]);
+      const newDescription = args.slice(1).join(' ');
+      
+      if (isNaN(itemId)) {
+        return message.reply('有効な商品IDを指定してください。');
+      }
+      
+      const item = items.find(i => i.id === itemId);
+      if (!item) {
+        return message.reply(`ID: ${itemId} の商品は見つかりませんでした。`);
+      }
+      
+      const oldDescription = item.description;
+      item.description = newDescription;
+      
+      await message.reply(`商品「${item.name}」の説明を更新しました。`);
+    }
+    
+    // 管理者コマンド: データバックアップ
+    else if (command === 'backup' && message.member?.permissions.has('Administrator')) {
+      const data = {
+        items,
+        transactions,
+        users,
+        timestamp: new Date().toISOString()
+      };
+      
+      const jsonData = JSON.stringify(data, null, 2);
+      
+      // DMでバックアップデータを送信
+      try {
+        await message.author.send({
+          content: `📊 データバックアップ (${new Date().toLocaleString('ja-JP')})`,
+          files: [{
+            attachment: Buffer.from(jsonData),
+            name: `discord-bot-backup-${new Date().toISOString().slice(0, 10)}.json`
+          }]
+        });
+        
+        await message.reply('バックアップデータをDMに送信しました。');
+      } catch (error) {
+        console.error('バックアップの送信に失敗しました:', error);
+        await message.reply('バックアップデータの送信に失敗しました。DMが開けることを確認してください。');
+      }
     }
   }
 });
