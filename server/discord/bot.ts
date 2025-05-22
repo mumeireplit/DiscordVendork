@@ -19,9 +19,9 @@ export const client = new Client({
     GatewayIntentBits.DirectMessageReactions,
   ],
   partials: [
-    'CHANNEL', // Required to receive DMs
-    'MESSAGE',
-    'REACTION'
+    Partials.Channel, // DMを受信するために必要
+    Partials.Message,
+    Partials.Reaction
   ],
 }) as BotClient;
 
