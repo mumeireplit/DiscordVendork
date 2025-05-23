@@ -1933,11 +1933,29 @@ async function handleAddCoinsCommand(message: Message, args: string[], storage: 
     
     // 残高更新
     const updatedUser = await storage.updateDiscordUserBalance(discordUser.id, amount);
+    if (!updatedUser) {
+      return await message.reply('残高の更新に失敗しました。');
+    }
     
-    await message.reply(`${userMention} に ${amount} コインを追加しました。新しい残高: ${updatedUser?.balance} コイン`);
+    // 成功メッセージ
+    const guildSettings = await storage.getBotSettings(message.guild?.id || '');
+    const currencyName = guildSettings?.currencyName || 'コイン';
+    
+    // 成功メッセージ（エンベッド）
+    const successEmbed = new EmbedBuilder()
+      .setTitle('💰 残高追加完了')
+      .setDescription(`${userMention} に ${amount} ${currencyName}を追加しました！`)
+      .addFields({ 
+        name: '新しい残高', 
+        value: `${updatedUser.balance} ${currencyName}` 
+      })
+      .setColor('#3BA55C')
+      .setTimestamp();
+    
+    await message.reply({ embeds: [successEmbed] });
   } catch (error) {
     console.error('Error adding coins:', error);
-    await message.reply('コイン追加中にエラーが発生しました。');
+    await message.reply('コイン追加中にエラーが発生しました。エラー詳細はサーバーログを確認してください。');
   }
 }
 
@@ -1983,7 +2001,37 @@ const addCoinsCommand = {
       // 残高更新
       const updatedUser = await storage.updateDiscordUserBalance(discordUser.id, amount);
       
-      await interaction.editReply(`${user.toString()} に ${amount} コインを追加しました。新しい残高: ${updatedUser?.balance} コイン`);
+      if (!updatedUser) {
+        return await interaction.editReply('残高の更新に失敗しました。');
+      }
+      
+      // 成功メッセージ
+      const guildSettings = await storage.getBotSettings(interaction.guildId || '');
+      const currencyName = guildSettings?.currencyName || 'コイン';
+      
+      // 成功メッセージ（エンベッド）
+      const successEmbed = new EmbedBuilder()
+        .setTitle('💰 残高追加完了')
+        .setDescription(`<@${user.id}> に ${amount} ${currencyName}を追加しました！`)
+        .addFields({ 
+          name: '新しい残高', 
+          value: `${updatedUser.balance} ${currencyName}` 
+        })
+        .setColor('#3BA55C')
+        .setTimestamp();
+      
+      await interaction.editReply({ embeds: [successEmbed] });
+      
+      // 公開チャンネルにも通知（オプション）
+      const publicEmbed = new EmbedBuilder()
+        .setTitle('💰 残高追加')
+        .setDescription(`<@${interaction.user.id}> が <@${user.id}> に ${amount} ${currencyName}を追加しました！`)
+        .setColor('#3BA55C')
+        .setTimestamp();
+        
+      if (interaction.channel) {
+        await interaction.channel.send({ embeds: [publicEmbed] });
+      }
     } catch (error) {
       console.error('Error adding coins:', error);
       await interaction.editReply('コイン追加中にエラーが発生しました。');
