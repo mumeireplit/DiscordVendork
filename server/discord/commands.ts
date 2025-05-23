@@ -299,11 +299,11 @@ async function handleShowCommand(message: Message, storage: IStorage) {
           let discordUser = await storage.getDiscordUserByDiscordId(interaction.user.id);
           
           if (!discordUser) {
-            // ユーザーが存在しない場合は作成
+            // ユーザーが存在しない場合は作成（初期残高0）
             discordUser = await storage.createDiscordUser({
               discordId: interaction.user.id,
               username: interaction.user.username,
-              balance: 500 // 初期残高
+              balance: 0 // 初期残高を0に設定
             });
           }
           
