@@ -1393,11 +1393,11 @@ async function handleCheckoutCommand(message: Message, storage: IStorage) {
     let discordUser = await storage.getDiscordUserByDiscordId(message.author.id);
     
     if (!discordUser) {
-      // ユーザーが存在しない場合は作成
+      // ユーザーが存在しない場合は作成（初期残高0）
       discordUser = await storage.createDiscordUser({
         discordId: message.author.id,
         username: message.author.username,
-        balance: 1000 // 初期残高
+        balance: 0 // 初期残高0に設定
       });
     }
     
